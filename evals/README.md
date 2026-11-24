@@ -28,15 +28,23 @@ The runner resets the evaluation database (its name must end in `_eval` or `_tes
 
 ## Current results
 
-`reports/2026-11-24-fake.md` is an **offline run only**. The fake embedder is a hashed bag of words and the fake chat model quotes one sentence. So the answer metrics reflect the stand-in, not model quality, and only the retrieval comparison is meaningful. No live-model run has been executed: there is no API key in this environment.
+`reports/2026-11-24T1402-fake.md` (commit `91826d1`) is an **offline run only**. The fake embedder is a hashed bag of words and the fake chat model quotes one sentence. So the answer metrics reflect the stand-in, not model quality, and only the retrieval comparison is meaningful. No live-model run has been executed: there is no API key in this environment.
 
-Observations from that run, on a corpus of 16 cases and 11 chunks:
-- Hybrid improved on vector for Recall@1 (0.615 vs 0.500), Recall@3 (0.846 vs 0.769), Recall@8 (1.000 vs 0.923) and MRR (0.838 vs 0.750). Answer metrics were identical in both modes. Hybrid latency p50 was 10.2 ms vs 7.8 ms, for two queries instead of one.
-- Metrics are reproducible across fresh ingestions. Tied rankings now break by document name and chunk ordinal; an earlier run that broke ties by random chunk UUIDs produced varying hybrid numbers.
-- With top-8 over about 10 sample chunks, Recall@8 is close to saturated. Recall@1, Recall@3 and MRR are the discriminating metrics.
-- Failures with the fake model:
-  - E13: the scoped question has no supporting evidence in SOP-003, but the fake model answers from term overlap anyway.
+Observations from that run, on a corpus of 16 cases and 11 chunks (10 sample chunks plus the injection fixture):
+- **Retrieval:** hybrid beat vector on Recall@1 (0.615 vs 0.500), Recall@3 (0.846 vs 0.769), Recall@8 (1.000 vs 0.923) and MRR (0.838 vs 0.750).
+- **Answers:** metrics were identical in both modes:
+  - Status accuracy 0.875.
+  - Correct non-answers 0.333.
+  - Literal fact recall 0.231.
+  - Citation gold precision 0.846.
+  - No injection leaks.
+- **Latency:** p50 was 8.0 ms (vector) vs 9.8 ms (hybrid). At millisecond scale with 16 cases this is noise-level. With n=16, p95 is the slowest case.
+- **Reproducibility:** metrics are reproducible across fresh ingestions. Tied rankings break by document name and chunk ordinal.
+- **Matching granularity:** each sample page is currently one chunk, so gold matching is effectively document + page. The section-heading check matters only once pages split into several chunks. It can also misfire on prose like "score of 5. High".
+- **Failures with the fake model:**
+  - E13: the scoped question has no supporting evidence in SOP-003, but the fake model answers from term overlap with a citation (`cited_non_answer_cases` = 1).
   - E16: the fake model never asks for clarification.
   - Comparison cases: the fake model quotes one source only.
   These are limits of the stand-in. A live run is needed to judge them.
-- Decision: keep `RETRIEVAL_MODE=hybrid` as the default. Revisit after a live run with real embeddings.
+- **Literal fact recall is structurally capped:** comparison, version and extraction facts are paraphrases, so the verbatim match cannot reach 1.0 for those cases.
+- **Decision:** keep `RETRIEVAL_MODE=hybrid` as the default. Revisit after a live run with real embeddings.
