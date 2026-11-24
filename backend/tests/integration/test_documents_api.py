@@ -16,7 +16,7 @@ def upload(client: TestClient, name: str, data: bytes, content_type: str = "appl
     return client.post("/api/documents", files={"file": (name, data, content_type)})
 
 
-def test_upload_pdf_creates_processing_document_and_stores_file(
+def test_upload_pdf_creates_ready_document_and_stores_file(
     client: TestClient, storage_dir: Path
 ) -> None:
     pdf = make_pdf(["Deviation SOP", "CAPA section"])
@@ -26,7 +26,8 @@ def test_upload_pdf_creates_processing_document_and_stores_file(
     body = response.json()
     assert body["name"] == "deviation-sop.pdf"
     assert body["media_type"] == "application/pdf"
-    assert body["status"] == "processing"
+    assert body["status"] == "ready"
+    assert body["error"] is None
     assert body["duplicate"] is False
     assert "storage_key" not in body
     assert [p.read_bytes() for p in storage_dir.iterdir()] == [pdf]
@@ -124,7 +125,9 @@ def test_missing_stored_file_returns_404(client: TestClient, storage_dir: Path) 
 
 
 def test_pdf_file_response_is_viewable_inline(client: TestClient) -> None:
-    document_id = upload(client, "guide.pdf", make_pdf(["guide"])).json()["id"]
+    document_id = upload(client, "guide.pdf", make_pdf(["Guidance on deviation handling"])).json()[
+        "id"
+    ]
     response = client.get(f"/api/documents/{document_id}/file")
 
     assert response.headers["content-type"] == "application/pdf"

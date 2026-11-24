@@ -15,6 +15,22 @@ def test_fake_embeddings_are_deterministic_unit_vectors() -> None:
     assert math.isclose(math.fsum(v * v for v in first), 1.0, rel_tol=1e-9)
 
 
+def test_fake_embeddings_rank_shared_terms_higher() -> None:
+    provider = FakeEmbeddingProvider()
+    query, related, unrelated = provider.embed(
+        ["when must deviations be reported", "Deviations must be reported within 24 hours", "x y z"]
+    )
+
+    def cosine(a: list[float], b: list[float]) -> float:
+        return sum(x * y for x, y in zip(a, b, strict=True))
+
+    assert cosine(query, related) > cosine(query, unrelated)
+
+
+def test_fake_embeddings_handle_text_without_tokens() -> None:
+    assert math.isclose(math.fsum(v * v for v in FakeEmbeddingProvider().embed(["  "])[0]), 1.0)
+
+
 def test_fake_embeddings_preserve_input_order_and_count() -> None:
     provider = FakeEmbeddingProvider(dimensions=8)
     texts = ["a", "b", "c"]

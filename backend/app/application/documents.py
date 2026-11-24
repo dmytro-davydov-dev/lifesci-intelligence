@@ -9,12 +9,19 @@ from pathlib import Path
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
-from app.domain.documents import PDF_MEDIA_TYPE, check_page_count, validate_upload
+from app.application.ingestion import IngestionService
+from app.domain.chunking import ChunkDraft, PageText, chunk_pages
+from app.domain.documents import (
+    PDF_MEDIA_TYPE,
+    ValidatedUpload,
+    check_extractable_text,
+    validate_upload,
+)
 from app.infrastructure.document_repository import DocumentRepository
 from app.infrastructure.models import Document
 from app.infrastructure.storage import LocalFileStorage
 
-PdfPageCounter = Callable[[bytes], int]
+PdfReader = Callable[[bytes], list[PageText]]
 
 
 class DocumentNotFoundError(Exception):
@@ -32,21 +39,27 @@ class DocumentService:
         self,
         session_factory: sessionmaker,
         storage: LocalFileStorage,
-        count_pdf_pages: PdfPageCounter,
+        read_pdf_pages: PdfReader,
+        ingestion: IngestionService,
     ) -> None:
         self._session_factory = session_factory
         self._storage = storage
-        self._count_pdf_pages = count_pdf_pages
+        self._read_pdf_pages = read_pdf_pages
+        self._ingestion = ingestion
 
     def upload(self, filename: str | None, data: bytes) -> UploadResult:
         upload = validate_upload(filename, data)
-        if upload.media_type == PDF_MEDIA_TYPE:
-            check_page_count(self._count_pdf_pages(data))
         sha256 = hashlib.sha256(data).hexdigest()
 
         existing = self._find_by_sha256(sha256)
         if existing is not None:
+            if existing.status == "failed":
+                drafts = self._parse(upload, data)
+                if self._ingestion.claim_failed(existing.id):
+                    existing = self._ingestion.ingest(existing.id, drafts)
             return UploadResult(existing, duplicate=True)
+
+        drafts = self._parse(upload, data)
 
         key = self._storage.save(data, upload.extension)
         try:
@@ -70,11 +83,11 @@ class DocumentService:
         except BaseException:
             self._storage.delete(key)
             raise
-        return UploadResult(document, duplicate=False)
+        return UploadResult(self._ingestion.ingest(document.id, drafts), duplicate=False)
 
-    def list(self) -> list[Document]:
+    def list_documents(self) -> list[Document]:
         with self._session_factory() as session:
-            return DocumentRepository(session).list()
+            return DocumentRepository(session).list_all()
 
     def get(self, document_id: uuid.UUID) -> Document:
         with self._session_factory() as session:
@@ -88,6 +101,12 @@ class DocumentService:
         if not path.is_file():
             raise DocumentNotFoundError(str(document.id))
         return path
+
+    def _parse(self, upload: ValidatedUpload, data: bytes) -> list[ChunkDraft]:
+        is_pdf = upload.media_type == PDF_MEDIA_TYPE
+        pages = self._read_pdf_pages(data) if is_pdf else [PageText(None, data.decode("utf-8-sig"))]
+        check_extractable_text([page.text for page in pages], is_pdf=is_pdf)
+        return chunk_pages(pages)
 
     def _find_by_sha256(self, sha256: str) -> Document | None:
         with self._session_factory() as session:

@@ -4,6 +4,10 @@ from dataclasses import dataclass
 from typing import Literal, Protocol
 
 
+class EmbeddingError(Exception):
+    """Provider failure with a message that is safe to show to users."""
+
+
 class EmbeddingProvider(Protocol):
     dimensions: int
 

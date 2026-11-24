@@ -8,7 +8,9 @@ def make_pdf(
 ) -> bytes:
     document = pymupdf.open()
     for text in pages if pages is not None else ["Synthetic SOP page 1"]:
-        document.new_page().insert_text((72, 72), text)
+        page = document.new_page()
+        # Wrapped text box so long text stays on the page and remains extractable.
+        page.insert_textbox(page.rect + (72, 72, -72, -72), text, fontsize=10)
     if password:
         data = document.tobytes(
             encryption=pymupdf.PDF_ENCRYPT_AES_256,

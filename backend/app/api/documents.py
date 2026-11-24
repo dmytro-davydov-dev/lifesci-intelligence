@@ -56,7 +56,7 @@ def upload_document(file: Annotated[UploadFile, File()], response: Response, ser
 
 @router.get("", response_model=list[DocumentOut])
 def list_documents(service: Service):
-    return service.list()
+    return service.list_documents()
 
 
 @router.get("/{document_id}", response_model=DocumentOut)

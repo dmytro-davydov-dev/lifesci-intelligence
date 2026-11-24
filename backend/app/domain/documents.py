@@ -88,3 +88,23 @@ def _validate_text(data: bytes) -> None:
         data.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise DocumentValidationError("invalid_text", "Text files must be UTF-8 encoded.") from exc
+
+
+MIN_PDF_CHARS_PER_PAGE = 10
+
+
+def check_extractable_text(texts: list[str], is_pdf: bool) -> None:
+    """Reject documents without machine-readable text, e.g. scanned PDFs.
+
+    PDFs averaging fewer than MIN_PDF_CHARS_PER_PAGE non-whitespace characters per page
+    (blank or page-number-only scans) are treated as scanned.
+    """
+    chars = sum(len("".join(text.split())) for text in texts)
+    if is_pdf and chars < MIN_PDF_CHARS_PER_PAGE * max(len(texts), 1):
+        raise DocumentValidationError(
+            "no_extractable_text",
+            "The PDF has no extractable text; it may be scanned. OCR is not supported - "
+            "upload a text-based PDF.",
+        )
+    if chars == 0:
+        raise DocumentValidationError("no_extractable_text", "The file contains no text.")

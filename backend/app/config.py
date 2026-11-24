@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci"
     model_provider: Literal["fake", "openai"] = "fake"
     openai_api_key: SecretStr | None = None
+    openai_embedding_model: str = "text-embedding-3-small"
+    openai_timeout_seconds: float = 30.0
+    openai_max_retries: int = 2
+    embedding_batch_size: int = 64
+    ingestion_deadline_seconds: float = 120.0
     cors_origins: list[str] = ["http://127.0.0.1:3000", "http://localhost:3000"]
     db_connect_timeout_seconds: int = 3
     storage_dir: Path = Path("storage")

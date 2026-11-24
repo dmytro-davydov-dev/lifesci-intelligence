@@ -1,5 +1,5 @@
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, make_url, text
 
 from app.config import Settings
+from app.domain.providers import EmbeddingProvider
 from app.main import create_app
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -68,8 +69,25 @@ def storage_dir(tmp_path: Path) -> Path:
     return tmp_path / "storage"
 
 
+ClientFactory = Callable[..., TestClient]
+
+
 @pytest.fixture
-def client(database_url: str, clean_db: None, storage_dir: Path) -> Iterator[TestClient]:
-    settings = Settings(database_url=database_url, storage_dir=storage_dir)
-    with TestClient(create_app(settings)) as test_client:
-        yield test_client
+def make_client(database_url: str, clean_db: None, storage_dir: Path) -> Iterator[ClientFactory]:
+    """Build API clients sharing one clean test DB and storage dir; optional fake embedder."""
+    clients: list[TestClient] = []
+
+    def factory(embedder: EmbeddingProvider | None = None, **client_kwargs) -> TestClient:
+        settings = Settings(database_url=database_url, storage_dir=storage_dir)
+        test_client = TestClient(create_app(settings, embedder=embedder), **client_kwargs)
+        clients.append(test_client.__enter__())
+        return test_client
+
+    yield factory
+    for test_client in clients:
+        test_client.__exit__(None, None, None)
+
+
+@pytest.fixture
+def client(make_client: ClientFactory) -> TestClient:
+    return make_client()
