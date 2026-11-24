@@ -2,7 +2,7 @@
 
 Evidence-grounded document intelligence for pharmaceutical quality and regulatory documentation. Newpage FDE take-home, Option 1.
 
-**Status: Phase 1 in progress.** Implemented: Compose stack, schema, health endpoints, fake model providers, validated PDF/text upload with duplicate detection and original-file viewing (`/api/documents`), page-aware chunking and embeddings (fake offline or OpenAI `text-embedding-3-small`) with atomic ready/failed status, grounded chat (`POST /api/chat`) with vector retrieval, document scoping, validated citations derived from the database, one repair attempt and abstention. Not yet: UI, hybrid retrieval, evals, comparison.
+**Status: Phase 1 in progress.** Implemented: Compose stack, schema, health endpoints, fake model providers, validated PDF/text upload with duplicate detection and original-file viewing (`/api/documents`), page-aware chunking and embeddings (fake offline or OpenAI `text-embedding-3-small`) with atomic ready/failed status, grounded chat (`POST /api/chat`) with vector retrieval, document scoping, validated citations derived from the database, one repair attempt and abstention. Web workspace at http://127.0.0.1:3000: upload/list documents, scoped chat, clickable citations and evidence panel. Not yet: browser smoke test, hybrid retrieval, evals, comparison.
 
 ## Intended experience
 Upload public or synthetic PDF/text documents, ask questions, inspect exact source passages and compare procedures against reference guidance. Findings are potential gaps for human review, not clinical advice or compliance certification.
@@ -29,7 +29,7 @@ Web UI: http://127.0.0.1:3000 · API: http://127.0.0.1:8000 (docs at `/docs`) ·
 cd backend && uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest
 # integration tests need the Compose DB running; they create/migrate a separate *_test database:
 TEST_DATABASE_URL=postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci_test REQUIRE_INTEGRATION=1 uv run pytest
-cd frontend && npm ci && npm run lint && npm run typecheck && npm run build
+cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm run build
 ```
 LangSmith is optional and off by default (not yet wired).
 

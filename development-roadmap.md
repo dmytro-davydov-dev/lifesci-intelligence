@@ -12,7 +12,7 @@ Exit: Compose starts and readiness succeeds. Commit only with human approval.
 - [x] T04 Implement validated PDF/text upload, storage, status and duplicate handling.
 - [x] T05 Page-aware chunking, embeddings and atomic persistence; test failure paths.
 - [x] T06 Vector retrieval, scoped context, structured answer, citation validation and abstention.
-- [ ] T07 Document library, chat, evidence panel and errors; connect real API.
+- [x] T07 Document library, chat, evidence panel and errors; connect real API.
 - [ ] T08 Run upload-to-answer smoke test with synthetic fixture and opt-in live model.
 Exit: working MVP vertical slice with citations and reproducible startup. Capture screenshot now.
 
