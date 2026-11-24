@@ -38,7 +38,7 @@ test("upload, ask, inspect evidence, abstain and detect duplicates", async ({ pa
   const errors = trackPageErrors(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "LifeSci Intelligence" })).toBeVisible();
-  await expect(page.getByText("API and database ready")).toBeVisible();
+  await expect(page.locator('[data-status="ready"]')).toHaveText("API and database ready");
 
   await uploadSop(page);
   await page.getByRole("checkbox", { name: /SOP-001-v2\.pdf/ }).check();
@@ -117,7 +117,7 @@ test("rejects a non-PDF renamed to .pdf with an actionable error", async ({ page
 test("small screens stack panels without horizontal scrolling", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await expect(page.getByText("API and database ready")).toBeVisible();
+  await expect(page.locator('[data-status="ready"]')).toHaveText("API and database ready");
   await expect(page.getByRole("checkbox").first()).toBeVisible(); // measure with documents listed
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
