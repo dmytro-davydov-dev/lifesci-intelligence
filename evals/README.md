@@ -12,7 +12,7 @@ EVAL_DATABASE_URL=postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci_ev
 # Live (opt-in): MODEL_PROVIDER=openai OPENAI_API_KEY=... OPENAI_CHAT_MODEL=... plus the same command
 ```
 
-The runner resets the evaluation database (its name must end in `_eval` or `_test`). It ingests the sample documents and the INJECTION-001 fixture, then runs every case in `vector` and `hybrid` mode with identical providers and settings. Unscoped cases are restricted to the sample documents, so the injection fixture affects only E15. It writes `reports/<date>-<provider>.{json,md}`.
+The runner resets the evaluation database (its name must end in `_eval` or `_test`). It ingests the sample documents and the INJECTION-001 fixture, then runs every case in `vector` and `hybrid` mode with identical providers and settings. Unscoped cases are restricted to the sample documents, so the injection fixture affects only E15. It then runs the comparison and version cases (E06–E10) once more through the comparison agent (`mode=compare`, hybrid retrieval), and checks the production auto-routing rule against every case's category. It writes `reports/<date>-<provider>.{json,md}`.
 
 ## Metrics
 - **Retrieval:** Recall@1/3/8 and MRR against gold page/section labels. Sections are matched by heading text inside the retrieved chunk.
@@ -24,11 +24,18 @@ The runner resets the evaluation database (its name must end in `_eval` or `_tes
   - Citation gold precision: whether cited chunks are gold locations. This checks citations point to the right place, not that they support the claim semantically.
   - Injection leaks (forbidden phrases in the answer).
   - Latency p50/p95.
+- **Comparison agent:**
+  - Evidence recall: gold locations found anywhere in the passages the agent gathered.
+  - Gold-document coverage: the share of gold documents the citations point into.
+  - Citation gold precision.
+  - Assessment accuracy: whether any finding carries the expected assessment in `comparison-labels.json`. Those labels come from the corpus README's "Intentional gaps", not from the user-supplied golden dataset; E10 is unlabelled.
+  - Mean agent steps and latency.
+- **Routing:** auto-routing accuracy against case categories (comparison/version → compare, everything else → Q&A).
 - **Unavailable:** token counts and cost (adapters do not record usage yet), and semantic support (no judge model).
 
 ## Current results
 
-`reports/2026-11-24T1402-fake.md` (commit `91826d1`) is an **offline run only**. The fake embedder is a hashed bag of words and the fake chat model quotes one sentence. So the answer metrics reflect the stand-in, not model quality, and only the retrieval comparison is meaningful. No live-model run has been executed: there is no API key in this environment.
+`reports/2026-11-24T1434-fake.md` (commit `fcafbe4`) is an **offline run only**. The fake embedder is a hashed bag of words and the fake chat model quotes one sentence. So the answer metrics reflect the stand-in, not model quality, and only the retrieval comparison is meaningful. No live-model run has been executed: there is no API key in this environment.
 
 Observations from that run, on a corpus of 16 cases and 11 chunks (10 sample chunks plus the injection fixture):
 - **Retrieval:** hybrid beat vector on Recall@1 (0.615 vs 0.500), Recall@3 (0.846 vs 0.769), Recall@8 (1.000 vs 0.923) and MRR (0.838 vs 0.750).
@@ -38,7 +45,7 @@ Observations from that run, on a corpus of 16 cases and 11 chunks (10 sample chu
   - Literal fact recall 0.231.
   - Citation gold precision 0.846.
   - No injection leaks.
-- **Latency:** p50 was 8.0 ms (vector) vs 9.8 ms (hybrid). At millisecond scale with 16 cases this is noise-level. With n=16, p95 is the slowest case.
+- **Latency:** p50 was 8.6 ms (vector) vs 10.1 ms (hybrid). At millisecond scale with 16 cases this is noise-level. With n=16, p95 is the slowest case.
 - **Reproducibility:** metrics are reproducible across fresh ingestions. Tied rankings break by document name and chunk ordinal.
 - **Matching granularity:** each sample page is currently one chunk, so gold matching is effectively document + page. The section-heading check matters only once pages split into several chunks. It can also misfire on prose like "score of 5. High".
 - **Failures with the fake model:**
@@ -48,3 +55,11 @@ Observations from that run, on a corpus of 16 cases and 11 chunks (10 sample chu
   These are limits of the stand-in. A live run is needed to judge them.
 - **Literal fact recall is structurally capped:** comparison, version and extraction facts are paraphrases, so the verbatim match cannot reach 1.0 for those cases.
 - **Decision:** keep `RETRIEVAL_MODE=hybrid` as the default. Revisit after a live run with real embeddings.
+- **Q&A after the Phase 3 refactor:** every Q&A metric matches the previous offline report (commit `91826d1`); only latency differs.
+- **Routing:** auto-routing accuracy 1.000 over 16 cases; nothing misrouted.
+- **Comparison agent (offline stand-in):**
+  - Status accuracy 1.000, evidence recall 1.000 and gold-document coverage 1.000 over the five cases.
+  - Citation gold precision is 0.667 in every case. The fake searches each document whose name shares tokens with the question (three searches per case) and quotes one passage per document, so some citations fall outside the gold locations.
+  - Assessment accuracy is 0.000 over the 4 labelled cases. The stand-in never judges alignment, and its only finding is always `insufficient_evidence`. This shows the metric works; it says nothing about model quality.
+  - Mean agent steps 5.0 (list, three searches, finish). Latency p50 16.6 ms.
+  - A live run is needed to measure real gap detection, planning cost and tokens.

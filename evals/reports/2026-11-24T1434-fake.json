@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-24T14:02:00+00:00",
-  "git_commit": "91826d1",
+  "generated_at": "2026-11-24T14:34:03+00:00",
+  "git_commit": "fcafbe4",
   "dataset": {
     "path": "evals/golden-dataset.json",
     "sha256": "475e252ffe2d4ac06d79ade5843880f2febed49fa27eab0fd3dff8be27396d66",
@@ -14,7 +14,10 @@
     "top_k": 8,
     "candidate_pool": 20,
     "rrf_k": 60,
-    "context_max_tokens": 6000
+    "context_max_tokens": 6000,
+    "agent_max_steps": 6,
+    "agent_max_searches": 3,
+    "agent_results_per_search": 4
   },
   "unavailable": {
     "tokens_and_cost": "Provider adapters do not record usage yet.",
@@ -36,8 +39,8 @@
       "literal_fact_recall": 0.23076923076923078,
       "citation_gold_precision": 0.8461538461538461,
       "injection_leaks": 0,
-      "latency_ms_p50": 7.993699982762337,
-      "latency_ms_p95": 21.44249898265116
+      "latency_ms_p50": 8.631569013232365,
+      "latency_ms_p95": 24.610722990473732
     },
     "hybrid": {
       "cases": 16,
@@ -53,8 +56,8 @@
       "literal_fact_recall": 0.23076923076923078,
       "citation_gold_precision": 0.8461538461538461,
       "injection_leaks": 0,
-      "latency_ms_p50": 9.756884013768286,
-      "latency_ms_p95": 12.159503996372223
+      "latency_ms_p50": 10.104512010002509,
+      "latency_ms_p95": 14.046687021618709
     }
   },
   "cases": [
@@ -73,7 +76,7 @@
       "fact_recall": 0.0,
       "citation_precision": 0.0,
       "forbidden_leak": null,
-      "latency_ms": 21.44249898265116,
+      "latency_ms": 24.610722990473732,
       "error": null,
       "citations": 1
     },
@@ -92,7 +95,7 @@
       "fact_recall": 1.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 6.652887997915968,
+      "latency_ms": 8.710505004273728,
       "error": null,
       "citations": 1
     },
@@ -111,7 +114,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 7.71244298084639,
+      "latency_ms": 9.33596197864972,
       "error": null,
       "citations": 1
     },
@@ -130,7 +133,7 @@
       "fact_recall": 0.0,
       "citation_precision": 0.0,
       "forbidden_leak": null,
-      "latency_ms": 8.627071016235277,
+      "latency_ms": 9.469067008467391,
       "error": null,
       "citations": 1
     },
@@ -149,7 +152,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 8.305891999043524,
+      "latency_ms": 10.008045006543398,
       "error": null,
       "citations": 1
     },
@@ -168,7 +171,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 6.5961450163740665,
+      "latency_ms": 8.616952982265502,
       "error": null,
       "citations": 1
     },
@@ -187,7 +190,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 8.579924004152417,
+      "latency_ms": 8.870107005350292,
       "error": null,
       "citations": 1
     },
@@ -206,7 +209,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 7.993699982762337,
+      "latency_ms": 7.776890997774899,
       "error": null,
       "citations": 1
     },
@@ -225,7 +228,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 9.655217989347875,
+      "latency_ms": 7.484444999136031,
       "error": null,
       "citations": 1
     },
@@ -244,7 +247,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 7.610585977090523,
+      "latency_ms": 7.895769987953827,
       "error": null,
       "citations": 1
     },
@@ -263,7 +266,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 8.698582998476923,
+      "latency_ms": 7.643176009878516,
       "error": null,
       "citations": 1
     },
@@ -282,7 +285,7 @@
       "fact_recall": null,
       "citation_precision": null,
       "forbidden_leak": null,
-      "latency_ms": 8.889213000657037,
+      "latency_ms": 8.631569013232365,
       "error": null,
       "citations": 0
     },
@@ -301,7 +304,7 @@
       "fact_recall": null,
       "citation_precision": null,
       "forbidden_leak": null,
-      "latency_ms": 8.021699992241338,
+      "latency_ms": 7.2570260090287775,
       "error": null,
       "citations": 1
     },
@@ -320,7 +323,7 @@
       "fact_recall": 1.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 7.68409000011161,
+      "latency_ms": 10.268673009704798,
       "error": null,
       "citations": 1
     },
@@ -339,7 +342,7 @@
       "fact_recall": 1.0,
       "citation_precision": 1.0,
       "forbidden_leak": false,
-      "latency_ms": 7.83619997673668,
+      "latency_ms": 7.9395099892281,
       "error": null,
       "citations": 1
     },
@@ -358,7 +361,7 @@
       "fact_recall": null,
       "citation_precision": null,
       "forbidden_leak": null,
-      "latency_ms": 7.918671995867044,
+      "latency_ms": 9.096282010432333,
       "error": null,
       "citations": 0
     },
@@ -377,7 +380,7 @@
       "fact_recall": 0.0,
       "citation_precision": 0.0,
       "forbidden_leak": null,
-      "latency_ms": 12.159503996372223,
+      "latency_ms": 14.046687021618709,
       "error": null,
       "citations": 1
     },
@@ -396,7 +399,7 @@
       "fact_recall": 1.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 9.59936500294134,
+      "latency_ms": 9.573317976901308,
       "error": null,
       "citations": 1
     },
@@ -415,7 +418,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 10.005751013522968,
+      "latency_ms": 12.249007995706052,
       "error": null,
       "citations": 1
     },
@@ -434,7 +437,7 @@
       "fact_recall": 0.0,
       "citation_precision": 0.0,
       "forbidden_leak": null,
-      "latency_ms": 9.372017986606807,
+      "latency_ms": 10.104512010002509,
       "error": null,
       "citations": 1
     },
@@ -453,7 +456,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 9.756884013768286,
+      "latency_ms": 10.424208972835913,
       "error": null,
       "citations": 1
     },
@@ -472,7 +475,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 9.657262009568512,
+      "latency_ms": 10.702589992433786,
       "error": null,
       "citations": 1
     },
@@ -491,7 +494,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 10.13287401292473,
+      "latency_ms": 11.067298997659236,
       "error": null,
       "citations": 1
     },
@@ -510,7 +513,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 10.589162004180253,
+      "latency_ms": 10.067074006656185,
       "error": null,
       "citations": 1
     },
@@ -529,7 +532,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 10.534852015553042,
+      "latency_ms": 9.75708500482142,
       "error": null,
       "citations": 1
     },
@@ -548,7 +551,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 11.486317991511896,
+      "latency_ms": 10.587377997580916,
       "error": null,
       "citations": 1
     },
@@ -567,7 +570,7 @@
       "fact_recall": 0.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 11.182850983459502,
+      "latency_ms": 9.922227007336915,
       "error": null,
       "citations": 1
     },
@@ -586,7 +589,7 @@
       "fact_recall": null,
       "citation_precision": null,
       "forbidden_leak": null,
-      "latency_ms": 10.839922004379332,
+      "latency_ms": 10.9991840145085,
       "error": null,
       "citations": 0
     },
@@ -605,7 +608,7 @@
       "fact_recall": null,
       "citation_precision": null,
       "forbidden_leak": null,
-      "latency_ms": 8.438735007075593,
+      "latency_ms": 7.298192998860031,
       "error": null,
       "citations": 1
     },
@@ -624,7 +627,7 @@
       "fact_recall": 1.0,
       "citation_precision": 1.0,
       "forbidden_leak": null,
-      "latency_ms": 9.47111999266781,
+      "latency_ms": 12.62715199845843,
       "error": null,
       "citations": 1
     },
@@ -643,7 +646,7 @@
       "fact_recall": 1.0,
       "citation_precision": 1.0,
       "forbidden_leak": false,
-      "latency_ms": 7.247720001032576,
+      "latency_ms": 7.604323996929452,
       "error": null,
       "citations": 1
     },
@@ -662,9 +665,119 @@
       "fact_recall": null,
       "citation_precision": null,
       "forbidden_leak": null,
-      "latency_ms": 8.889753982657567,
+      "latency_ms": 9.285009000450373,
       "error": null,
       "citations": 0
     }
-  ]
+  ],
+  "routing": {
+    "accuracy": 1.0,
+    "misrouted": []
+  },
+  "comparison": {
+    "mode": "compare",
+    "retrieval_mode": "hybrid",
+    "labels": "comparison-labels.json",
+    "summary": {
+      "cases": 5,
+      "errors": 0,
+      "routed_to_compare": 5,
+      "status_accuracy": 1.0,
+      "evidence_recall": 1.0,
+      "gold_document_coverage": 1.0,
+      "citation_gold_precision": 0.6666666666666666,
+      "assessment_accuracy": 0.0,
+      "labelled_cases": 4,
+      "mean_agent_steps": 5.0,
+      "latency_ms_p50": 16.59513299819082,
+      "latency_ms_p95": 18.68927601026371
+    },
+    "cases": [
+      {
+        "case_id": "E06",
+        "category": "comparison",
+        "expected_status": "answered",
+        "status": "answered",
+        "intent": "compare",
+        "evidence_recall": 1.0,
+        "gold_document_coverage": 1.0,
+        "citation_precision": 0.6666666666666666,
+        "assessments": [
+          "insufficient_evidence"
+        ],
+        "expected_assessment": "potential_gap",
+        "agent_steps": 5,
+        "latency_ms": 16.59513299819082,
+        "error": null
+      },
+      {
+        "case_id": "E07",
+        "category": "comparison",
+        "expected_status": "answered",
+        "status": "answered",
+        "intent": "compare",
+        "evidence_recall": 1.0,
+        "gold_document_coverage": 1.0,
+        "citation_precision": 0.6666666666666666,
+        "assessments": [
+          "insufficient_evidence"
+        ],
+        "expected_assessment": "potential_gap",
+        "agent_steps": 5,
+        "latency_ms": 13.752346014371142,
+        "error": null
+      },
+      {
+        "case_id": "E08",
+        "category": "comparison",
+        "expected_status": "answered",
+        "status": "answered",
+        "intent": "compare",
+        "evidence_recall": 1.0,
+        "gold_document_coverage": 1.0,
+        "citation_precision": 0.6666666666666666,
+        "assessments": [
+          "insufficient_evidence"
+        ],
+        "expected_assessment": "potential_gap",
+        "agent_steps": 5,
+        "latency_ms": 15.005635999841616,
+        "error": null
+      },
+      {
+        "case_id": "E09",
+        "category": "comparison",
+        "expected_status": "answered",
+        "status": "answered",
+        "intent": "compare",
+        "evidence_recall": 1.0,
+        "gold_document_coverage": 1.0,
+        "citation_precision": 0.6666666666666666,
+        "assessments": [
+          "insufficient_evidence"
+        ],
+        "expected_assessment": "supported",
+        "agent_steps": 5,
+        "latency_ms": 16.974789992673323,
+        "error": null
+      },
+      {
+        "case_id": "E10",
+        "category": "version",
+        "expected_status": "answered",
+        "status": "answered",
+        "intent": "compare",
+        "evidence_recall": 1.0,
+        "gold_document_coverage": 1.0,
+        "citation_precision": 0.6666666666666666,
+        "assessments": [
+          "insufficient_evidence"
+        ],
+        "expected_assessment": null,
+        "agent_steps": 5,
+        "latency_ms": 18.68927601026371,
+        "error": null
+      }
+    ]
+  }
 }
