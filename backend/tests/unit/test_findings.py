@@ -97,3 +97,7 @@ def test_non_answers_drop_findings() -> None:
         [],
     )
     assert result.answer == "Not enough ."
+
+
+def test_citation_markers_in_topics_are_rejected() -> None:
+    assert code(raw([finding(topic="Reporting [S9]")])) == "invalid_finding"

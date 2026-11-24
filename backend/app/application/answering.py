@@ -100,7 +100,9 @@ def check_injection(
     contract: "GenerationContract",
 ) -> ValidatedAnswer:
     """Reject output that echoes instructions found in sources or the system prompt."""
-    text = "\n".join([validated.answer, *(f.explanation for f in validated.findings)])
+    text = "\n".join(
+        [validated.answer, *(f"{f.topic}\n{f.explanation}" for f in validated.findings)]
+    )
     if echoes(text, injected, ECHO_NGRAM):
         raise AnswerValidationError(
             "injection_echo",

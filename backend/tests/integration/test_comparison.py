@@ -479,3 +479,52 @@ def test_planning_stops_early_and_the_answer_uses_the_reserve(make_client) -> No
     assert chat.timeouts[0] == pytest.approx(45.0 - SYNTHESIS_RESERVE_SECONDS)
     assert chat.timeouts[-1] == pytest.approx(9.0)
     assert body["status"] == "answered"
+
+
+def test_planning_provider_error_keeps_gathered_evidence(make_client) -> None:
+    from app.domain.providers import ChatError
+
+    chat = Recorder(
+        [step("list_documents"), SEARCH_SOP, ChatError("Model request failed."), SOP_ONLY]
+    )
+    client = make_client(chat_provider=chat)
+    corpus(client)
+    body = ask(client).json()
+    assert chat.schemas[-1] == "comparison_findings"
+    assert body["status"] == "answered"
+
+
+def test_planning_provider_error_without_evidence_returns_503(make_client) -> None:
+    from app.domain.providers import ChatError
+
+    chat = Recorder(
+        [step("list_documents"), ChatError("Model request failed (InternalServerError).")]
+    )
+    client = make_client(chat_provider=chat)
+    corpus(client)
+    response = ask(client)
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "model_unavailable"
+
+
+def test_search_provider_error_after_evidence_answers_from_it(make_client) -> None:
+    from app.domain.providers import EmbeddingError
+    from app.infrastructure.fake_providers import FakeEmbeddingProvider
+
+    searches: list[int] = []
+
+    class FlakyEmbedder(FakeEmbeddingProvider):
+        def embed(self, texts, timeout=None):
+            if searches:  # armed after the uploads: counts query embeddings only
+                searches[0] += 1
+                if searches[0] == 2:
+                    raise EmbeddingError("Embedding request failed.")
+            return super().embed(texts, timeout)
+
+    chat = Recorder([step("list_documents"), SEARCH_SOP, SEARCH_REF, SOP_ONLY])
+    client = make_client(chat_provider=chat, embedder=FlakyEmbedder())
+    corpus(client)
+    searches.append(0)
+    body = ask(client).json()
+    assert chat.schemas == ["agent_step"] * 3 + ["comparison_findings"]
+    assert body["status"] == "answered"

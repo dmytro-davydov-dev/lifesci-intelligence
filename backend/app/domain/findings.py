@@ -61,6 +61,10 @@ def _finding(item: object, label_documents: dict[str, uuid.UUID]) -> Finding:
     if not isinstance(item, dict):
         raise AnswerValidationError("invalid_finding", "Each finding must be an object.")
     topic = _text(item, "topic", MAX_TOPIC_CHARS)
+    if markers(topic):
+        raise AnswerValidationError(
+            "invalid_finding", "Put citations in the explanation, not in the topic."
+        )
     explanation = _text(item, "explanation", MAX_EXPLANATION_CHARS)
     assessment = item.get("assessment")
     if assessment not in ASSESSMENTS:

@@ -25,7 +25,14 @@ from app.domain.agent import (
 )
 from app.domain.answers import INSUFFICIENT_EVIDENCE_MESSAGE
 from app.domain.chunking import estimate_tokens
-from app.domain.providers import ChatMessage, ChatProvider, EmbeddingProvider, ModelTimeoutError
+from app.domain.providers import (
+    ChatError,
+    ChatMessage,
+    ChatProvider,
+    EmbeddingError,
+    EmbeddingProvider,
+    ModelTimeoutError,
+)
 from app.domain.retrieval import RetrievedChunk, Source
 from app.workflows.chat_graph import ChatContext, ChatState, Outcome
 
@@ -61,6 +68,8 @@ class ComparisonAgent:
     # -- plan: the model picks the next tool -------------------------------------------------
 
     def plan(self, state: ChatState, context: ChatContext) -> dict:
+        if state.get("stop_reason"):  # a tool already ended the loop (timeout, provider error)
+            return {}
         step = state.get("step", 0) + 1
         if step > self._budget.max_steps:
             return _stop("step_budget")
@@ -96,6 +105,12 @@ class ComparisonAgent:
             span.end(error=type(exc).__name__)
             logger.warning("agent_step_timeout step=%d", step)
             return {"step": step, **_stop("timeout")}
+        except ChatError as exc:
+            span.end(error=type(exc).__name__)
+            if not sources:
+                raise
+            logger.warning("agent_step_failed step=%d error_class=%s", step, type(exc).__name__)
+            return {"step": step, **_stop("provider_error")}
         except Exception as exc:
             span.end(error=type(exc).__name__)
             raise
@@ -150,6 +165,18 @@ class ComparisonAgent:
                 logger.warning("agent_search_timeout step=%d", step)
                 record = ToolRecord(step, call, "failed: timed out")
                 return {**update, "log": [*state.get("log", []), record], **_stop("timeout")}
+            except EmbeddingError as exc:
+                # Keep evidence already gathered; with none, surface the provider error.
+                span.end(error=type(exc).__name__)
+                if not state.get("sources"):
+                    raise
+                logger.warning("agent_search_failed step=%d", step)
+                record = ToolRecord(step, call, "failed: provider error")
+                return {
+                    **update,
+                    "log": [*state.get("log", []), record],
+                    **_stop("provider_error"),
+                }
             except Exception as exc:
                 span.end(error=type(exc).__name__)
                 raise
@@ -165,7 +192,8 @@ class ComparisonAgent:
             labels = {d.label: d.document_id for d in context.documents}
             scope: list[uuid.UUID] | None = [labels[call.document]]
         else:
-            scope = context.document_ids
+            # Exactly the documents listed to the model (resolved once per request).
+            scope = [d.document_id for d in context.documents]
         query = call.query or ""
         vector = self._embedder.embed(
             [query], timeout=budget(context.deadline, SYNTHESIS_RESERVE_SECONDS)

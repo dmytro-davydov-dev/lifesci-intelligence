@@ -1,7 +1,9 @@
 """Deterministic intent routing between grounded Q&A and multi-document comparison.
 
 A rule, not a model call: routing is cheap, reproducible and testable, and the user can
-always force a path with mode=qa or mode=compare.
+always force a path with mode=qa or mode=compare. "difference" is deliberately not a
+trigger: definition questions ("difference between minor and major deviations") are
+single-document Q&A, and forcing them into two-document findings makes them abstain.
 """
 
 import re
@@ -12,7 +14,7 @@ MIN_COMPARE_DOCUMENTS = 2
 
 _COMPARE = re.compile(
     r"\b(?:compar(?:e|es|ed|ing|ison|isons)|versus|vs\.?|align(?:s|ed|ment)?"
-    r"|differ(?:s|ence|ences)?|gaps?|discrepanc(?:y|ies)|consistent with|inconsisten(?:t|cy)"
+    r"|gaps?|discrepanc(?:y|ies)|consistent with|inconsisten(?:t|cy)"
     r"|what changed|changes? between|changed between)\b",
     re.IGNORECASE,
 )

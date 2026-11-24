@@ -13,7 +13,6 @@ from tests.support.corpus import CORPUS_DIR
         "What changed between revision 1 and 2?",
         "Is there a gap in CAPA verification?",
         "SOP-001 vs QMS-REF-001 reporting",
-        "What are the differences in closure approval?",
     ],
 )
 def test_comparison_wording_is_detected(question: str) -> None:
@@ -26,6 +25,7 @@ def test_comparison_wording_is_detected(question: str) -> None:
         "How soon must a deviation be recorded?",
         "Which different roles approve CAPA?",  # "different" is not a comparison request
         "What is the retention period?",
+        "What is the difference between minor and major deviations?",
     ],
 )
 def test_plain_questions_are_not_comparisons(question: str) -> None:
