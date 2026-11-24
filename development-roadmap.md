@@ -18,7 +18,7 @@ Exit: working MVP vertical slice with citations and reproducible startup. Captur
 
 ## Phase 2 — reliability and evaluation (P0/P1)
 - [x] T09 Add conversation history bounds, input/output limits, timeout and injection defenses.
-- [ ] T10 Add FTS/RRF hybrid retrieval and unit/integration tests.
+- [x] T10 Add FTS/RRF hybrid retrieval and unit/integration tests.
 - [ ] T11 Create 12-15 labeled eval cases (factual, comparison, unsupported, ambiguity, injection, extraction where implemented).
 - [ ] T12 Run vector vs hybrid on same fixtures; record Recall@K, MRR, correctness/abstention and latency/cost when available.
 - [ ] T13 Add optional LangSmith traces, redaction policy and trace failure isolation; structured logs.

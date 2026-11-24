@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from sqlalchemy import select
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.application.prompts import (
     SYSTEM_PROMPT,
@@ -33,10 +33,10 @@ from app.domain.injection import (
     ngrams,
 )
 from app.domain.providers import ChatMessage, ChatProvider, EmbeddingProvider, ModelTimeoutError
-from app.domain.retrieval import Source, select_sources
+from app.domain.retrieval import RetrievedChunk, Source, select_sources
 from app.infrastructure.conversation_repository import ConversationRepository
 from app.infrastructure.models import Document
-from app.infrastructure.retrieval import vector_search
+from app.infrastructure.retrieval import hybrid_search, vector_search
 
 logger = logging.getLogger("app.chat")
 
@@ -47,6 +47,7 @@ MIN_CALL_SECONDS = 1.0
 MIN_REPAIR_SECONDS = 5.0
 _SYSTEM_PROMPT_NGRAMS = ngrams(SYSTEM_PROMPT, PROMPT_LEAK_NGRAM)
 Mode = Literal["auto", "qa", "compare"]
+RetrievalMode = Literal["vector", "hybrid"]
 
 
 class ConversationNotFoundError(Exception):
@@ -98,6 +99,9 @@ class ChatResult:
 @dataclass(frozen=True)
 class ChatSettings:
     top_k: int = 8
+    retrieval_mode: RetrievalMode = "hybrid"
+    candidate_pool: int = 20
+    rrf_k: int = 60
     context_max_tokens: int = 6000
     history_max_messages: int = 6
     history_message_max_chars: int = 2000
@@ -156,7 +160,7 @@ class ChatService:
                 )
                 for m in history
             ]
-            chunks = vector_search(session, query_vector, document_ids, self._settings.top_k)
+            chunks = self._retrieve(session, query_vector, question, document_ids)
 
         sources = select_sources(chunks, self._settings.context_max_tokens)
         if sources:
@@ -175,6 +179,26 @@ class ChatService:
                 conversation_id, "assistant", answer, [c.to_json() for c in citations]
             )
         return ChatResult(conversation_id, status, answer, citations)
+
+    def _retrieve(
+        self,
+        session: Session,
+        query_vector: list[float],
+        question: str,
+        document_ids: list[uuid.UUID] | None,
+    ) -> list[RetrievedChunk]:
+        settings = self._settings
+        if settings.retrieval_mode == "vector":
+            return vector_search(session, query_vector, document_ids, settings.top_k)
+        return hybrid_search(
+            session,
+            query_vector,
+            question,
+            document_ids,
+            settings.top_k,
+            candidate_pool=settings.candidate_pool,
+            rrf_k=settings.rrf_k,
+        )
 
     def _check_scope(self, session, document_ids: list[uuid.UUID]) -> None:
         if not document_ids:

@@ -1,12 +1,14 @@
 """Retrieved evidence and context assembly."""
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from app.domain.chunking import estimate_tokens
 
 DEFAULT_TOP_K = 8
 DEFAULT_CONTEXT_TOKENS = 6000
+DEFAULT_CANDIDATE_POOL = 20
+DEFAULT_RRF_K = 60
 
 
 @dataclass(frozen=True)
@@ -41,3 +43,25 @@ def select_sources(
         used += cost
         sources.append(Source(label=f"S{len(sources) + 1}", chunk=chunk))
     return sources
+
+
+def reciprocal_rank_fusion(
+    rankings: list[list[RetrievedChunk]],
+    top_k: int = DEFAULT_TOP_K,
+    k: int = DEFAULT_RRF_K,
+) -> list[RetrievedChunk]:
+    """Fuse ranked lists by summing 1 / (k + rank); `score` becomes the fused score.
+
+    Ties are broken by best single rank, then chunk id, so results are deterministic.
+    """
+    scores: dict[uuid.UUID, float] = {}
+    best_rank: dict[uuid.UUID, int] = {}
+    chunks: dict[uuid.UUID, RetrievedChunk] = {}
+    for ranking in rankings:
+        for rank, chunk in enumerate(ranking, start=1):
+            key = chunk.chunk_id
+            scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
+            best_rank[key] = min(best_rank.get(key, rank), rank)
+            chunks.setdefault(key, chunk)
+    ordered = sorted(scores, key=lambda key: (-scores[key], best_rank[key], str(key)))
+    return [replace(chunks[key], score=scores[key]) for key in ordered[:top_k]]

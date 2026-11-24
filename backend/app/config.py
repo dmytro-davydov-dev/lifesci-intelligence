@@ -19,7 +19,10 @@ class Settings(BaseSettings):
     openai_embedding_model: str = "text-embedding-3-small"
     openai_chat_model: str | None = None
     max_output_tokens: int = 1000
-    retrieval_top_k: int = 8
+    retrieval_top_k: int = Field(default=8, ge=1, le=50)
+    retrieval_mode: Literal["vector", "hybrid"] = "hybrid"
+    retrieval_candidate_pool: int = Field(default=20, ge=1, le=200)
+    rrf_k: int = Field(default=60, ge=1)
     context_max_tokens: int = 6000
     history_max_messages: int = Field(default=6, ge=0)
     history_message_max_chars: int = Field(default=2000, ge=100)

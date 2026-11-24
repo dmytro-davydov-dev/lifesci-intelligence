@@ -63,6 +63,9 @@ def create_app(
         chat_provider,
         ChatSettings(
             top_k=settings.retrieval_top_k,
+            retrieval_mode=settings.retrieval_mode,
+            candidate_pool=settings.retrieval_candidate_pool,
+            rrf_k=settings.rrf_k,
             context_max_tokens=settings.context_max_tokens,
             history_max_messages=settings.history_max_messages,
             history_message_max_chars=settings.history_message_max_chars,

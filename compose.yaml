@@ -28,6 +28,7 @@ services:
       OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-}
       MAX_OUTPUT_TOKENS: ${MAX_OUTPUT_TOKENS:-1000}
       REQUEST_DEADLINE_SECONDS: ${REQUEST_DEADLINE_SECONDS:-45}
+      RETRIEVAL_MODE: ${RETRIEVAL_MODE:-hybrid}
       STORAGE_DIR: /data/storage
       CORPUS_DIR: /data/lifesci-test-data
     volumes:
