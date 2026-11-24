@@ -2,7 +2,7 @@
 
 Evidence-grounded document intelligence for pharmaceutical quality and regulatory documentation. Newpage FDE take-home, Option 1.
 
-**Status: Phase 0 (bootstrap) complete.** Compose stack, database schema, health endpoints and fake model providers work. Document upload, retrieval and chat are not implemented yet (Phase 1).
+**Status: Phase 1 in progress.** Implemented: Compose stack, schema, health endpoints, fake model providers, validated PDF/text upload with duplicate detection and original-file viewing (`/api/documents`). Not yet: chunking/embeddings, retrieval, chat, UI.
 
 ## Intended experience
 Upload public or synthetic PDF/text documents, ask questions, inspect exact source passages and compare procedures against reference guidance. Findings are potential gaps for human review, not clinical advice or compliance certification.
@@ -27,8 +27,8 @@ Web UI: http://127.0.0.1:3000 · API: http://127.0.0.1:8000 (docs at `/docs`) ·
 ### Checks
 ```bash
 cd backend && uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest
-# integration tests need the Compose DB running:
-TEST_DATABASE_URL=postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci REQUIRE_INTEGRATION=1 uv run pytest
+# integration tests need the Compose DB running; they create/migrate a separate *_test database:
+TEST_DATABASE_URL=postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci_test REQUIRE_INTEGRATION=1 uv run pytest
 cd frontend && npm ci && npm run lint && npm run typecheck && npm run build
 ```
 LangSmith is optional and off by default (not yet wired).

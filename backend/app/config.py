@@ -1,6 +1,7 @@
 """Application settings loaded from environment variables."""
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import SecretStr
@@ -17,6 +18,7 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     cors_origins: list[str] = ["http://127.0.0.1:3000", "http://localhost:3000"]
     db_connect_timeout_seconds: int = 3
+    storage_dir: Path = Path("storage")
 
 
 @lru_cache
