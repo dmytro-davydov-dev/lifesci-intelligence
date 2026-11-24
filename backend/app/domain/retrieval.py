@@ -20,6 +20,7 @@ class RetrievedChunk:
     section: str | None
     text: str
     score: float
+    ordinal: int = 0  # position within the document; stable tie-break across ingestions
 
 
 @dataclass(frozen=True)
@@ -52,7 +53,8 @@ def reciprocal_rank_fusion(
 ) -> list[RetrievedChunk]:
     """Fuse ranked lists by summing 1 / (k + rank); `score` becomes the fused score.
 
-    Ties are broken by best single rank, then chunk id, so results are deterministic.
+    Ties are broken by best single rank, then document name and ordinal (stable across
+    re-ingestion, unlike random chunk ids), so results are reproducible.
     """
     scores: dict[uuid.UUID, float] = {}
     best_rank: dict[uuid.UUID, int] = {}
@@ -63,5 +65,10 @@ def reciprocal_rank_fusion(
             scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
             best_rank[key] = min(best_rank.get(key, rank), rank)
             chunks.setdefault(key, chunk)
-    ordered = sorted(scores, key=lambda key: (-scores[key], best_rank[key], str(key)))
+
+    def order(key: uuid.UUID) -> tuple:
+        chunk = chunks[key]
+        return (-scores[key], best_rank[key], chunk.document_name, chunk.ordinal, str(key))
+
+    ordered = sorted(scores, key=order)
     return [replace(chunks[key], score=scores[key]) for key in ordered[:top_k]]

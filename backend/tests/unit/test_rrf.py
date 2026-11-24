@@ -53,3 +53,11 @@ def test_or_tsquery_dedupes_and_caps_terms() -> None:
     assert or_tsquery("QA qa Qa") == "qa"
     assert len(or_tsquery(" ".join(f"t{i}" for i in range(100))).split(" | ")) == 64
     assert or_tsquery("the " * 100 + "deviation") == "deviation"
+
+
+def test_ties_ignore_random_chunk_ids() -> None:
+    # Same document/ordinal ordering must win regardless of uuid ordering.
+    first = RetrievedChunk(uuid.UUID(int=2), uuid.uuid4(), "a.pdf", 1, None, "first", 0.0, 0)
+    second = RetrievedChunk(uuid.UUID(int=1), uuid.uuid4(), "a.pdf", 1, None, "second", 0.0, 1)
+    fused = reciprocal_rank_fusion([[first], [second]], top_k=2)
+    assert texts(fused) == ["first", "second"]

@@ -79,6 +79,7 @@ def _retrieved(chunk: Chunk, name: str, score: float) -> RetrievedChunk:
         section=chunk.section,
         text=chunk.text,
         score=score,
+        ordinal=chunk.ordinal,
     )
 
 
@@ -91,7 +92,7 @@ def vector_search(
     """Exact cosine search; only `ready` documents, optionally restricted to document_ids."""
     distance = Chunk.embedding.cosine_distance(query_vector).label("distance")
     statement = _scoped(select(Chunk, Document.name, distance), document_ids)
-    statement = statement.order_by(distance, Chunk.id).limit(top_k)
+    statement = statement.order_by(distance, Document.name, Chunk.ordinal, Chunk.id).limit(top_k)
     return [
         _retrieved(chunk, name, 1.0 - float(dist))
         for chunk, name, dist in session.execute(statement)
@@ -127,7 +128,7 @@ def keyword_search(
     statement = _scoped(select(Chunk, Document.name, rank), document_ids)
     statement = (
         statement.where(Chunk.search.bool_op("@@")(query))
-        .order_by(rank.desc(), Chunk.id)
+        .order_by(rank.desc(), Document.name, Chunk.ordinal, Chunk.id)
         .limit(top_k)
     )
     return [

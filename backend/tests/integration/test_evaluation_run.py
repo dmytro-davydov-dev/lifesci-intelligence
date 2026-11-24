@@ -30,6 +30,17 @@ def test_offline_run_compares_modes_on_identical_cases(database_url: str) -> Non
     assert "| recall@8 |" in render_markdown(report)
 
 
+def test_metrics_are_reproducible_across_fresh_ingestions(database_url: str) -> None:
+    def metrics() -> dict:
+        report = run_evaluation(Settings(database_url=database_url), CORPUS_DIR)
+        return {
+            mode: {k: v for k, v in summary.items() if not k.startswith("latency")}
+            for mode, summary in report["summary"].items()
+        }
+
+    assert metrics() == metrics()
+
+
 def test_refuses_to_reset_a_non_evaluation_database() -> None:
     with pytest.raises(EvaluationSetupError):
         prepare_database("postgresql+psycopg://u:p@127.0.0.1:5432/lifesci")
