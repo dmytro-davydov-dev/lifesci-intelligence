@@ -36,10 +36,12 @@ class Settings(BaseSettings):
     storage_dir: Path = Path("storage")
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     # Optional LangSmith tracing; off by default and never required for tests.
-    langsmith_tracing: bool = False
-    langsmith_api_key: SecretStr | None = None
-    langsmith_project: str = "lifesci-intelligence"
-    langsmith_endpoint: str | None = None
+    # Deliberately not the standard LANGSMITH_* names: those also switch on LangChain/LangGraph
+    # auto-tracing of full prompts and outputs, which would bypass the redaction policy.
+    trace_langsmith: bool = False
+    trace_langsmith_api_key: SecretStr | None = None
+    trace_langsmith_project: str = "lifesci-intelligence"
+    trace_langsmith_endpoint: str | None = None
     # Adds question/answer/source text to traces. Approved public/synthetic data only.
     trace_include_content: bool = False
 

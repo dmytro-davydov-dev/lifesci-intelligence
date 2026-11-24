@@ -35,7 +35,7 @@ from app.domain.injection import (
 )
 from app.domain.providers import ChatMessage, ChatProvider, EmbeddingProvider, ModelTimeoutError
 from app.domain.retrieval import RetrievedChunk, Source, select_sources
-from app.domain.tracing import NoopTracer, Span, Tracer
+from app.domain.tracing import NoopTracer, SafeTracer, Span, Tracer
 from app.infrastructure.conversation_repository import ConversationRepository
 from app.infrastructure.models import Document
 from app.infrastructure.retrieval import hybrid_search, vector_search
@@ -128,7 +128,7 @@ class ChatService:
         self._chat = chat
         self._settings = settings or ChatSettings()
         self._clock = clock
-        self._tracer = tracer or NoopTracer()
+        self._tracer: Tracer = SafeTracer(tracer) if tracer else NoopTracer()
         self._payloads = trace_payloads or TracePayloads()
 
     def ask(
@@ -196,7 +196,11 @@ class ChatService:
                 for m in history
             ]
             retrieval = root.child("retrieve", "retriever", {"mode": self._settings.retrieval_mode})
-            chunks = self._retrieve(session, query_vector, question, document_ids)
+            try:
+                chunks = self._retrieve(session, query_vector, question, document_ids)
+            except Exception as exc:
+                retrieval.end(error=type(exc).__name__)
+                raise
             retrieval.end(self._payloads.retrieved(chunks))
 
         sources = select_sources(chunks, self._settings.context_max_tokens)

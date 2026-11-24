@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 
 import pytest
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.domain.providers import ChatError, ModelTimeoutError
 from app.infrastructure.fake_providers import FakeEmbeddingProvider, ScriptedChatProvider
 from app.infrastructure.models import Chunk, Message
+from app.infrastructure.observability import JsonFormatter
 from tests.support.pdfs import make_pdf
 
 pytestmark = pytest.mark.integration
@@ -389,11 +391,19 @@ def test_request_and_chat_events_are_logged_without_content(make_client, caplog)
     upload(client, SOP)
     question = "Within how many hours must a deviation be reported to Quality Assurance?"
 
-    with caplog.at_level("INFO", logger="app"):
-        response = ask(
-            client,
-            question,
-        )
+    lines: list[str] = []
+
+    class JsonCapture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            lines.append(JsonFormatter().format(record))  # formatted at emit, as in production
+
+    capture = JsonCapture()
+    logging.getLogger("app").addHandler(capture)
+    try:
+        with caplog.at_level("INFO", logger="app"):
+            response = ask(client, question)
+    finally:
+        logging.getLogger("app").removeHandler(capture)
 
     request_id = response.headers["X-Request-ID"]
     [chat] = [r for r in caplog.records if r.getMessage() == "chat_completed"]
@@ -405,6 +415,9 @@ def test_request_and_chat_events_are_logged_without_content(make_client, caplog)
     assert chat.fields["status"] == "answered"
     assert chat.fields["citations"] == 1 and chat.fields["sources"] >= 1
     assert request.fields["request_id"] == request_id
+    # The contextvar reaches log records emitted in the sync route's threadpool.
+    [chat_line] = [json.loads(line) for line in lines if '"chat_completed"' in line]
+    assert chat_line["request_id"] == request_id
     assert request.fields["status"] == 200 and request.fields["duration_ms"] >= 0
     assert question not in caplog.text
     assert "Quality Assurance within" not in caplog.text
@@ -445,3 +458,22 @@ def test_chat_errors_are_recorded_on_the_root_span(make_client) -> None:
     response = ask(make_client(tracer=tracer), "Hi?", conversation_id=str(uuid.uuid4()))
     assert response.status_code == 404
     assert tracer.roots[0].error == "ConversationNotFoundError"
+
+
+def test_span_failures_mid_request_do_not_affect_chat(make_client) -> None:
+    class ExplodingSpan:
+        def child(self, *args):
+            raise RuntimeError("child boom")
+
+        def end(self, *args):
+            raise RuntimeError("end boom")
+
+    class ExplodingSpanTracer:
+        def start(self, *args):
+            return ExplodingSpan()
+
+    client = make_client(tracer=ExplodingSpanTracer())  # raw: ChatService must wrap it
+    upload(client, SOP)
+    response = ask(client, "Within how many hours must a deviation be reported to QA?")
+    assert response.status_code == 200
+    assert response.json()["status"] == "answered"

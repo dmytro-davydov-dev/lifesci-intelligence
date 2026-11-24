@@ -52,9 +52,10 @@ def build_chat_provider(settings: Settings) -> ChatProvider:
 
 def build_tracer(settings: Settings) -> Tracer:
     """LangSmith when enabled and keyed; otherwise a no-op. Never raises."""
-    if not settings.langsmith_tracing:
+    if not settings.trace_langsmith:
         return NoopTracer()
-    key = settings.langsmith_api_key.get_secret_value() if settings.langsmith_api_key else ""
+    secret = settings.trace_langsmith_api_key
+    key = secret.get_secret_value() if secret else ""
     if not key:
         logger.warning("tracing_disabled", extra={"fields": {"reason": "missing_api_key"}})
         return NoopTracer()
@@ -64,15 +65,16 @@ def build_tracer(settings: Settings) -> Tracer:
         from app.infrastructure.langsmith_tracer import LangSmithTracer
 
         client = Client(
-            api_url=settings.langsmith_endpoint,
+            api_url=settings.trace_langsmith_endpoint,
             api_key=key,
             timeout_ms=(2000, 5000),
+            omit_traced_runtime_info=True,  # no platform/git metadata, no git subprocess
             tracing_error_callback=lambda exc: logger.warning(
                 "trace_failed",
                 extra={"fields": {"action": "upload", "error_class": type(exc).__name__}},
             ),
         )
-        return SafeTracer(LangSmithTracer(client, settings.langsmith_project))
+        return SafeTracer(LangSmithTracer(client, settings.trace_langsmith_project))
     except Exception as exc:
         logger.warning(
             "tracing_disabled",

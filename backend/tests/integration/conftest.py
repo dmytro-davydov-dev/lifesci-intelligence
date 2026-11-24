@@ -88,7 +88,13 @@ def make_client(database_url: str, clean_db: None, storage_dir: Path) -> Iterato
         **client_kwargs,
     ) -> TestClient:
         settings = Settings(
-            database_url=database_url, storage_dir=storage_dir, **(settings_overrides or {})
+            database_url=database_url,
+            storage_dir=storage_dir,
+            # Never inherit provider or tracing configuration from the developer's shell.
+            model_provider="fake",
+            trace_langsmith=False,
+            trace_include_content=False,
+            **(settings_overrides or {}),
         )
         app = create_app(
             settings, embedder=embedder, chat_provider=chat_provider, clock=clock, tracer=tracer

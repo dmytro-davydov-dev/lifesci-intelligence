@@ -64,18 +64,22 @@ def test_content_is_traced_only_when_enabled() -> None:
     assert payloads.retrieved([CHUNK])["documents"][0]["text"] == "secret passage"
 
 
-def test_tracer_factory_is_off_by_default_and_needs_a_key() -> None:
+def test_tracer_factory_is_off_by_default_and_needs_a_key(monkeypatch) -> None:
+    for name in ("TRACE_LANGSMITH", "TRACE_LANGSMITH_API_KEY", "LANGSMITH_TRACING"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")  # standard var must not enable app tracing
     assert isinstance(build_tracer(Settings()), NoopTracer)
-    assert isinstance(build_tracer(Settings(langsmith_tracing=True)), NoopTracer)
-    keyed = Settings(langsmith_tracing=True, langsmith_api_key=SecretStr("lsv2-test"))
+    assert isinstance(build_tracer(Settings(trace_langsmith=True)), NoopTracer)
+    keyed = Settings(trace_langsmith=True, trace_langsmith_api_key=SecretStr("lsv2-test"))
     with patch("langsmith.Client") as client_class:
         tracer = build_tracer(keyed)
     assert isinstance(tracer, SafeTracer)
     assert client_class.call_args.kwargs["api_key"] == "lsv2-test"
+    assert client_class.call_args.kwargs["omit_traced_runtime_info"] is True
 
 
 def test_tracer_factory_falls_back_when_client_fails() -> None:
-    keyed = Settings(langsmith_tracing=True, langsmith_api_key=SecretStr("lsv2-test"))
+    keyed = Settings(trace_langsmith=True, trace_langsmith_api_key=SecretStr("lsv2-test"))
     with patch("langsmith.Client", side_effect=ValueError("bad endpoint")):
         assert isinstance(build_tracer(keyed), NoopTracer)
 
@@ -93,6 +97,7 @@ def test_langsmith_adapter_posts_and_patches_runs() -> None:
     kwargs = run_tree.call_args.kwargs
     assert kwargs["project_name"] == "proj" and kwargs["ls_client"] is client
     assert kwargs["extra"] == {"metadata": {"m": 2}}
+    assert kwargs["replicas"] == []
     root_run.post.assert_called_once()
     root_run.create_child.assert_called_once_with("model", "llm", inputs={"attempt": 1})
     child_run.post.assert_called_once()

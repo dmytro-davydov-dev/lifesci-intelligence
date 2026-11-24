@@ -37,6 +37,7 @@ class LangSmithTracer:
             project_name=self._project,
             ls_client=self._client,
             extra={"metadata": metadata},
+            replicas=[],  # never mirror to endpoints from LANGSMITH_RUNS_ENDPOINTS
         )
         run.post()
         return LangSmithSpan(run)
