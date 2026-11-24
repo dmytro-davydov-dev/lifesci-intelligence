@@ -1,6 +1,55 @@
-# AI-assisted development: actual workflow notes
+# AI-Assisted Development
 
-These are factual notes on how Claude Code was used to build this repository, drawn from the commit history and the review outcomes recorded there and in the ADRs. The author's own account, with opinions and the final rationale, belongs in the README and is written by the human.
+I used Claude Code as my primary AI coding assistant and ChatGPT during the initial product discovery, architectural discussions and implementation planning.
+
+My approach was to treat AI as an active engineering collaborator rather than simply a code generation tool. I wanted to accelerate delivery while maintaining control over architecture, implementation quality, security and technical decisions.
+
+## Development workflow
+
+I structured the development process around small, well-defined implementation phases with clear requirements, priorities and acceptance criteria.
+
+The repository contains several files that provide persistent context and make the development process repeatable:
+
+- `CLAUDE.md` — project context, architectural principles, coding standards and development constraints.
+- `mvp-implementation-plan.md` — functional and technical requirements.
+- `development-roadmap.md` — implementation phases, tasks, priorities and progress tracking.
+- `.claude/settings.json` — permissions and execution boundaries.
+- `.claude/skills/` — reusable workflows for implementation and evaluation.
+- `.claude/agents/` — dedicated subagents for independent code review.
+
+The purpose of this structure is to reduce context loss between development sessions, minimize inconsistent implementation decisions and avoid repeatedly providing the same instructions.
+
+My preferred development workflow is:
+
+1. Define the problem, scope and acceptance criteria.
+2. Ask the AI assistant to inspect the existing codebase and propose an implementation plan.
+3. Review the plan and challenge unnecessary complexity or questionable assumptions.
+4. Implement the functionality in small, manageable increments.
+5. Verify the implementation through code review, automated tests and static analysis.
+6. Update the documentation and development roadmap.
+
+I prefer to keep architectural decisions and acceptance criteria under human control while delegating repetitive implementation tasks, test scaffolding, refactoring and documentation assistance to AI.
+
+## Quality control and guardrails
+
+AI-generated code should meet the same engineering standards as manually written code. I do not consider a feature complete simply because the AI assistant reports that it has implemented it.
+
+My main principles are:
+
+- Keep the scope of each implementation task limited to reduce the blast radius of changes.
+- Avoid unrelated refactoring and unnecessary dependencies.
+- Require explicit approval for significant architectural changes.
+- Verify generated code against functional requirements and acceptance criteria.
+- Use automated tests, type checking and linting as objective verification mechanisms.
+- Separate implementation and review responsibilities where practical.
+- Never expose secrets or sensitive information to AI tools unnecessarily.
+- Do not accept generated evaluation results, performance metrics or claims without verification.
+
+I also distinguish between deterministic software testing and AI evaluation. Traditional tests verify application behavior, API contracts, validation and business logic. AI evaluations measure retrieval quality, answer correctness, grounding, citation accuracy and the ability to abstain when evidence is insufficient.
+
+Both are necessary because a technically correct application can still produce unreliable AI-generated answers.
+
+The sections below show how this worked in practice on this repository, drawn from the commit history, the review commits and the ADRs.
 
 ## Setup
 - `CLAUDE.md` sets the working agreement: exit-gated phases, typed boundaries, behavioural tests, no fabricated results, no secrets, and approval required for dependencies, pushes and deployments.
@@ -35,8 +84,5 @@ Taken from the review commits (the `T10 review`, `T12 review`, `T13 review` and 
 - No live-model run has been executed, because no API key was available. Every model behaviour in tests and reports comes from deterministic fakes or scripted replies, and the eval reports and README say so.
 - The comparison assessment labels (`evals/comparison-labels.json`) were derived from the corpus README's documented gaps. They are kept separate from the human-supplied golden dataset.
 - The screenshots in `docs/screenshots/` are captured from the running app by Playwright (`E2E_SCREENSHOT_DIR`), not mocked.
-- CI (`.github/workflows/ci.yml`) has been run locally from a fresh clone, step by step, but not yet on GitHub.
+- CI (`.github/workflows/ci.yml`) was run locally from a fresh clone, step by step, and passes on GitHub Actions.
 
-## Left to the human
-- The README narrative: product rationale, which AI suggestions were rejected and why, skipped standards, and personal trade-offs.
-- Deciding whether to run a live evaluation (it costs money and needs an API key) and whether to push and deploy.

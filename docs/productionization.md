@@ -23,7 +23,9 @@ This plan is a proposal for taking the local demo to a regulated, multi-user dep
 
 ## 4. Model operations
 - An approved model list, with provider data-processing terms reviewed. Use regional endpoints or Amazon Bedrock where data residency requires it.
-- Per-tenant token budgets, rate limits, and cost dashboards built from the `model_usage` logs.
+- Admission control at the API: per-user and per-tenant request rate limits and a cap on concurrent agent executions, returning HTTP 429 with a retry hint. Backed by a shared store once there is more than one API instance.
+- Token and cost budgets enforced by the runtime, not only observed: estimate and reserve tokens and cost before each model call, reconcile with the provider's reported usage afterwards, and stop or degrade to a validated partial answer when the budget runs out. This extends the MVP's step, search, context, output-token and deadline limits (see [agent runtime and execution controls](agent-runtime-architecture-and-execution-controls.md)).
+- Persistent usage accounting per request, user and tenant, built from the per-call `model_usage` token logs, feeding per-tenant quotas, cost dashboards and cost alerts.
 - An eval gate in CI and before model or prompt changes: the golden set grown to 40 or more cases, live runs on synthetic data, and regression thresholds for recall, abstention, citation precision and comparison assessment accuracy.
 - Human review loop: reviewers mark findings as confirmed or rejected, and that feedback feeds the evaluation data.
 

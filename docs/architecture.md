@@ -54,7 +54,7 @@ Only `ready` documents are retrievable. Vector search is exact cosine (no ANN in
 **Evidence:** `GET /api/documents/{id}/chunks/{chunk_id}` returns the exact passage. `GET /api/documents/{id}/file` serves the original file inline (`nosniff`, and CSP `sandbox` for text files).
 
 ## Quality and operations
-- **Tests:** unit (pure domain), integration (real pgvector with fake providers), security fixtures, the offline eval harness, and Playwright browser smoke. CI runs them on pushes to `main` and on pull requests (`.github/workflows/ci.yml`). The workflow is defined but has not yet run on GitHub.
+- **Tests:** unit (pure domain), integration (real pgvector with fake providers), security fixtures, the offline eval harness, and Playwright browser smoke. CI runs them on pushes to `main` and on pull requests (`.github/workflows/ci.yml`). It passes on GitHub Actions (commit `7ccbb90`).
 - **Logs:** structured JSON with a request ID, durations, token counts, statuses and error classes. Document text, questions and answers are never logged (ADR 0007).
 - **Tracing:** optional LangSmith tracing (`TRACE_LANGSMITH`) sends metadata only by default. LangChain auto-tracing is forced off.
 - **Evaluations:** `backend/app/evaluation/run.py` compares vector and hybrid retrieval and runs a comparison-agent pass. Reports are in `evals/reports/`; only offline runs exist.

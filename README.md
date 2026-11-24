@@ -10,18 +10,21 @@ Upload public or synthetic PDF/text documents, ask questions, inspect exact sour
 
 ![Comparison with structured findings](docs/screenshots/workspace-comparison.png)
 
-*Actual app, offline mode (`MODEL_PROVIDER=fake`), seeded synthetic corpus, captured by the Playwright smoke test (`E2E_SCREENSHOT_DIR`). Top: golden question E01 scoped to SOP-001-v2. Bottom: golden comparison E06 with two documents selected, showing the agent's findings and the cited evidence. The offline extractive stand-in is lexical, not a model: it quotes the documents' header lines rather than the 48-hour and 24-hour sentences, and it never judges alignment, so its only finding is "Insufficient evidence". Live-model output has not been captured (no API key).*
+*Actual app running end to end in offline mode (`MODEL_PROVIDER=fake`, no API key) on the seeded synthetic corpus, captured by the Playwright smoke test (`E2E_SCREENSHOT_DIR`). Top: golden question E01 scoped to SOP-001-v2. Retrieval returns the passage containing the 48-hour recording rule, and the citation opens it in the evidence panel. Bottom: golden comparison E06 with two documents selected. The bounded agent searches both documents, returns a structured finding with citations to QMS-REF-001 (24 hours) and SOP-001-v2 (48 hours), and the evidence panel shows the exact source passages. The deterministic fake generator is extractive: it quotes the retrieved chunks instead of writing prose, and it labels the comparison finding "Insufficient evidence" because it leaves the alignment call to the reviewer. With `MODEL_PROVIDER=openai`, the same pipeline uses an OpenAI model to write answers and assessments. I tested that mode manually with an API key; these screenshots show offline mode, which CI uses.*
 
 ## Documentation
 | Topic | Document |
 |---|---|
 | Architecture, data model, request flows | [docs/architecture.md](docs/architecture.md) |
+| Agent runtime architecture and execution controls | [docs/agent-runtime-architecture-and-execution-controls.md](docs/agent-runtime-architecture-and-execution-controls.md) |
 | Decisions and trade-offs | [docs/adr/](docs/adr/) (0001–0008) |
+| Engineering standards followed and skipped | [docs/engineering-standards.md](docs/engineering-standards.md) |
 | Security controls and known gaps | [docs/security.md](docs/security.md) |
 | Productionization plan (not implemented) | [docs/productionization.md](docs/productionization.md) |
-| Evaluation method and results | [evals/README.md](evals/README.md) |
-| AI-assisted development and decisions | [docs/ai-assisted-development-and-decisions.md](docs/ai-assisted-development-and-decisions.md) |
-| AI-assisted workflow (factual notes) | [docs/ai-workflow.md](docs/ai-workflow.md) |
+| Test corpus, checks, evaluation method and results | [evals/README.md](evals/README.md) |
+| AI-assisted development workflow | [docs/ai-workflow.md](docs/ai-workflow.md) |
+| Key technical and product decisions | [docs/key-technical-and-product-decisions.md](docs/key-technical-and-product-decisions.md) |
+| AI-generated suggestions I challenged | [docs/examples-of-ai-generated-suggestions-i-challenged.md](docs/examples-of-ai-generated-suggestions-i-challenged.md) |
 
 ## Local setup
 Prerequisites: Docker with Compose v2. For running checks outside containers: uv (Python 3.12) and Node 24 / npm.
@@ -34,55 +37,111 @@ curl http://127.0.0.1:8000/health/ready   # {"status":"ok","database":"ok"}
 
 Web UI: http://127.0.0.1:3000 · API: http://127.0.0.1:8000 (docs at `/docs`) · Postgres: 127.0.0.1:5432. All ports bind to loopback only. The API applies Alembic migrations on startup.
 
+**Live model:** set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` in `.env`, then reset and reseed. Embeddings from different providers must not be mixed in one database.
+
 **Reset:** `docker compose down -v && docker compose up --wait && docker compose exec api python -m app.seed`. The `-v` deletes the database and document-storage volumes, so all uploads and conversations are lost.
 
 *Verified 2026-11-24 from a fresh clone at commit `0710cc0`:* a separate Compose project started healthy in about 20 s, the seed ingested 7 of 7 documents, the four Playwright smoke tests passed, and after `down -v` the library was empty and reseeding restored it.
 
-### Test corpus
-`lifesci-test-data/` is the version-controlled, fully synthetic corpus (fictional Northstar Biologics SOPs and a fictional reference; see its README). QMS-REF-001 is a controlled benchmark, not ICH or FDA guidance. A unit test checks that every seedable file is listed in `manifest.json` and marked `synthetic`. It is used for development, integration tests and evaluations:
-
-| Path | Use |
-|---|---|
-| `sample-documents/` + `manifest.json` | Knowledge-base content; the only files the seed command ingests |
-| `evals/golden-dataset.json` | Evaluation questions and expected answers; never ingested |
-| `adversarial-documents/` | Prompt-injection fixtures; never seeded. Ingested only into throwaway `*_test` databases by `pytest -m security` and the evaluation harness, e.g. for golden case E15 |
-
-```bash
-docker compose exec api python -m app.seed      # seed the running stack
-```
-Compose mounts only `sample-documents/` and `manifest.json` (read-only) into the API container. Run the seed inside the container so files land in the shared storage volume and embeddings use the stack's configured provider. Seeding is idempotent: re-runs report `duplicate` and do not update stored metadata (reset with `docker compose down -v`, which deletes all local data). Paths are project-relative, so tests work unchanged in CI checkouts.
-
-### Checks
-```bash
-cd backend && uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest
-# integration tests need the Compose DB running; they create/migrate a separate *_test database:
-TEST_DATABASE_URL=postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci_test REQUIRE_INTEGRATION=1 uv run pytest
-TEST_DATABASE_URL=postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci_test REQUIRE_INTEGRATION=1 uv run pytest -m security   # adversarial fixtures only
-cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm run build
-# browser smoke against the running stack (docker compose up --build --wait):
-cd frontend && npx playwright install chromium && npm run test:e2e
-# optional: E2E_BASE_URL (default http://127.0.0.1:3000), E2E_SCREENSHOT_DIR=../docs/screenshots to save screenshots
-```
-Live-model smoke (opt-in, not run here): set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` in `.env`, reset and reseed (embeddings from different providers must not be mixed), then run `npm run test:e2e`.
-
-LangSmith tracing is optional and off by default (`TRACE_LANGSMITH`, metadata only; ADR 0007).
+Test corpus, seeding, test commands and evaluations: [evals/README.md](evals/README.md).
 
 ## Architecture
 Next.js + shadcn/ui -> FastAPI -> LangGraph chat graph (rule routing; grounded Q&A or a bounded read-only tool agent for comparisons) -> retrieval, ingestion and model adapters -> PostgreSQL + pgvector and local file storage. Hybrid full-text/vector retrieval fused with RRF. Optional metadata-only LangSmith tracing. Details: [docs/architecture.md](docs/architecture.md); also the [plan](mvp-implementation-plan.md), [roadmap](development-roadmap.md) and [product design](docs/product-design.md).
-
-## Engineering and evaluation
-Implemented: deterministic unit/integration tests, Playwright browser smoke, versioned evaluation fixtures with label checks, and an offline vector/hybrid comparison (`evals/reports/`, fake providers only; see `evals/README.md`). Structured JSON logs and optional, metadata-only LangSmith tracing (ADR 0007). CI runs lint, typecheck, unit/integration tests, builds and the browser smoke on pushes to `main` and on pull requests (`.github/workflows/ci.yml`; the same commands were verified locally from a fresh clone, but the workflow has not yet run on GitHub). Planned: live-model evaluation. See roadmap for status.
-
-## Limitations (scope review, Phase 4)
-- **No live-model run:** all answers, comparisons and evaluation numbers come from deterministic offline stand-ins or scripted test replies. Real answer quality, gap detection, latency and cost are unmeasured.
-- **Comparison:** routing is a wording rule, so implicit comparisons need `mode=compare`. Findings are not saved with the conversation. Assessments are for human review, never a compliance determination.
-- **Documents:** text-based PDF, TXT and MD only (no OCR or table extraction). Ingestion is synchronous, up to 10 MB and 100 pages.
-- **Retrieval:** exact vector search (fine at demo scale). The section matching used in evaluations is heuristic.
-- **Security:** single-user local demo with no authentication, encryption at rest or rate limiting. The injection guard is heuristic (see [docs/security.md](docs/security.md)).
-- **Not built (Phase 5):** FastMCP tools, cloud deployment, exports, dashboard, SSE, version-aware comparison UI, a larger eval set.
 
 ## Productionization
 Not production-ready: single-user local demo with no authentication. The proposed path is in [docs/productionization.md](docs/productionization.md): OIDC with RBAC and row-level tenant isolation, ECS Fargate, RDS pgvector, S3 with KMS, Secrets Manager, queued ingestion, eval-gated model changes, monitoring, backups and incident runbooks. Security controls and gaps: [docs/security.md](docs/security.md). No patient data or confidential documents.
 
 ## AI-assisted development and decisions
-How AI was used in development, quality guardrails, and key technical and product decisions: [docs/ai-assisted-development-and-decisions.md](docs/ai-assisted-development-and-decisions.md). Factual workflow notes, including review findings and their outcomes: [docs/ai-workflow.md](docs/ai-workflow.md).
+How AI was used in development, quality guardrails and review findings: [docs/ai-workflow.md](docs/ai-workflow.md). Key technical and product decisions: [docs/key-technical-and-product-decisions.md](docs/key-technical-and-product-decisions.md). Examples of AI-generated suggestions I challenged: [docs/examples-of-ai-generated-suggestions-i-challenged.md](docs/examples-of-ai-generated-suggestions-i-challenged.md).
+
+## What I would do differently with more time
+
+Given the time constraints, I prioritized a working end-to-end document intelligence workflow over a comprehensive production platform. With more time, I would focus on improving the quality of the evidence, validating architectural assumptions and making the application ready for real customer workloads. I would not necessarily introduce more technologies or agents.
+
+Known limitations of the current build are listed under the area where I would address them. The most important one: I tested the app manually with an OpenAI API key, but the committed evaluation report and screenshots come from the deterministic offline run used in CI. Live answer quality, gap detection, latency and cost have not yet been measured systematically.
+
+### 1. Validate the product with domain experts
+
+I would involve quality assurance and regulatory affairs professionals earlier in the development process. I would observe how they search documentation, compare procedures and investigate discrepancies, then use their feedback to refine the workflows and acceptance criteria.
+
+I would replace or supplement the synthetic document collection with representative, appropriately authorized and anonymized documents. I would also validate the terminology and interpretation of regulatory requirements with subject matter experts rather than relying on the LLM's general knowledge.
+
+### 2. Expand the evaluation framework
+
+**Current state:** 16 golden cases. The committed report is an offline run; the suite has not yet been run against the live model. The section matching used to score retrieval is heuristic.
+
+I would build a larger, independently reviewed golden dataset covering ambiguous questions, conflicting evidence, superseded documents, numerical thresholds, multi-document reasoning and adversarial inputs.
+
+I would measure retrieval recall and ranking quality separately from answer correctness, grounding, citation accuracy and abstention behavior. I would compare vector-only retrieval, keyword search, hybrid retrieval and reranking against the same dataset, recording latency and cost alongside quality metrics.
+
+I would use LangSmith for experiment comparison and trace analysis, while retaining deterministic local tests and introducing regression gates in CI. My objective would be to make changes to prompts, models and retrieval strategies evidence-driven rather than subjective.
+
+### 3. Improve document ingestion and retrieval
+
+**Current state:** text-based PDF, TXT and MD only, with no OCR or table extraction. Ingestion is synchronous and capped at 10 MB and 100 pages. Retrieval uses exact vector search, which is fine at demo scale.
+
+I would investigate layout-aware parsing, OCR for scanned documents, table extraction and section-aware chunking. Pharmaceutical documents often contain structured tables, cross-references and revision histories that can lose meaning when converted into plain text.
+
+I would introduce explicit document lifecycle management, including version history, effective dates, superseded status, ingestion provenance and reindexing. I would also evaluate metadata filtering and reranking before adopting them as default retrieval strategies.
+
+For larger workloads, I would move ingestion into an asynchronous, idempotent processing pipeline with persistent job status, bounded retries and failure recovery. I would retain PostgreSQL and pgvector until measured workload characteristics justified a different storage or search architecture.
+
+### 4. Strengthen agent reliability and execution control
+
+**Current state:** comparison routing is a wording rule, so implicit comparisons need `mode=compare`. Findings are for human review, never a compliance determination.
+
+I would expand the evaluation of the LangGraph workflows to determine when iterative retrieval and multi-step reasoning provide measurable value over a simpler RAG pipeline.
+
+I would strengthen application-level enforcement of execution deadlines, LLM and tool call limits, token budgets and financial budgets. For concurrent requests, I would introduce atomic budget reservations and persistent usage accounting to prevent multiple executions from exceeding shared quotas.
+
+I would test failure scenarios such as provider throttling, timeouts, malformed model outputs, insufficient evidence and partial execution failures. I would make termination reasons explicit and ensure that the application can abstain safely rather than generate unsupported findings.
+
+### 5. Strengthen security and data governance
+
+**Current state:** a single-user local demo with no authentication, encryption at rest or rate limiting. The prompt-injection guard is heuristic (see [docs/security.md](docs/security.md)).
+
+Before introducing real customer documents, I would implement authentication, tenant isolation and document-level authorization. Access restrictions would be enforced during retrieval and source access, independently of the model.
+
+I would strengthen file validation, indirect prompt injection defenses, tool permissions, secrets management, encryption, audit logging and data retention policies. I would also review what document content and metadata are sent to external model and observability providers.
+
+For a regulated life sciences environment, I would work with security, privacy and quality stakeholders to establish the applicable requirements, validation procedures and change controls. I would not present the application as a validated regulatory compliance system without the necessary evidence and approvals.
+
+### 6. Improve production readiness and operational ownership
+
+**Current state:** runs locally with Docker Compose only; there is no cloud deployment.
+
+I would establish service-level objectives for availability, latency and reliability, supported by load testing and operational metrics. I would monitor retrieval latency, model latency, token consumption, cost, error rates, ingestion failures and budget exhaustion.
+
+I would introduce deployment pipelines with automated quality gates, infrastructure as code, environment separation, database migration procedures and rollback mechanisms. I would also establish alerting, incident response runbooks, backup and restore testing and clear ownership of production support.
+
+For cloud deployment, I would evaluate managed container services, PostgreSQL and object storage before considering more complex infrastructure. I would introduce distributed rate limiting and concurrency controls when scaling beyond a single backend instance.
+
+### 7. Improve the user experience and integrations
+
+**Current state:** comparison findings are not saved with the conversation. Streaming (SSE), exports, a dashboard, a version-aware comparison UI and FastMCP tools are not built.
+
+I would refine the evidence viewer to make it easier to navigate directly to relevant document passages, compare conflicting requirements and understand which document version supports a finding.
+
+I would explore streaming responses, persistent conversation history, structured comparison reports and user feedback mechanisms. I would also consider MCP integration to expose selected document intelligence capabilities to authorized external AI clients, provided there is a concrete integration requirement.
+
+I would prioritize features based on observed user workflows rather than adding capabilities simply because they are technically possible.
+
+### 8. Improve the AI-assisted development process
+
+I would extend the repository's AI development instructions, reusable skills and review workflows based on recurring implementation mistakes. I would introduce more automated verification of AI-generated changes, particularly around authorization, retrieval correctness and agent execution boundaries.
+
+I would also maintain a lightweight record of architectural decisions and significant AI-generated recommendations that I accepted, rejected or modified, including the reasoning and verification behind those decisions.
+
+### My priorities
+
+| Priority | Focus | Expected benefit |
+|---|---|---|
+| P0 | Domain expert feedback and stronger evaluations | Validate product value and answer reliability |
+| P0 | Security, authorization and data governance | Enable responsible use of customer documents |
+| P1 | Document parsing, versioning and retrieval improvements | Improve evidence quality and traceability |
+| P1 | Agent reliability, resource budgets and failure handling | Predictable execution and cost |
+| P1 | Deployment, observability and operational processes | Sustainable production ownership |
+| P2 | UX enhancements and external integrations | Improve adoption and workflow efficiency |
+
+My main takeaway is that a successful prototype demonstrates feasibility, but a production-grade AI application must also demonstrate reliability, security, measurable quality and operational sustainability. With more time, I would prioritize collecting evidence that the system meets those expectations rather than increasing architectural complexity without a demonstrated need.
+

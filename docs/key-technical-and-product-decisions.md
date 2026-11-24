@@ -1,54 +1,3 @@
-# AI-Assisted Development
-
-I used Claude Code as my primary AI coding assistant and ChatGPT during the initial product discovery, architectural discussions and implementation planning.
-
-My approach was to treat AI as an active engineering collaborator rather than simply a code generation tool. I wanted to accelerate delivery while maintaining control over architecture, implementation quality, security and technical decisions.
-
-## Development workflow
-
-I structured the development process around small, well-defined implementation phases with clear requirements, priorities and acceptance criteria.
-
-The repository contains several files that provide persistent context and make the development process repeatable:
-
-- `CLAUDE.md` — project context, architectural principles, coding standards and development constraints.
-- `mvp-implementation-plan.md` — functional and technical requirements.
-- `development-roadmap.md` — implementation phases, tasks, priorities and progress tracking.
-- `.claude/settings.json` — permissions and execution boundaries.
-- `.claude/skills/` — reusable workflows for implementation and evaluation.
-- `.claude/agents/` — dedicated subagents for independent code review.
-
-The purpose of this structure is to reduce context loss between development sessions, minimize inconsistent implementation decisions and avoid repeatedly providing the same instructions.
-
-My preferred development workflow is:
-
-1. Define the problem, scope and acceptance criteria.
-2. Ask the AI assistant to inspect the existing codebase and propose an implementation plan.
-3. Review the plan and challenge unnecessary complexity or questionable assumptions.
-4. Implement the functionality in small, manageable increments.
-5. Verify the implementation through code review, automated tests and static analysis.
-6. Update the documentation and development roadmap.
-
-I prefer to keep architectural decisions and acceptance criteria under human control while delegating repetitive implementation tasks, test scaffolding, refactoring and documentation assistance to AI.
-
-## Quality control and guardrails
-
-AI-generated code should meet the same engineering standards as manually written code. I do not consider a feature complete simply because the AI assistant reports that it has implemented it.
-
-My main principles are:
-
-- Keep the scope of each implementation task limited to reduce the blast radius of changes.
-- Avoid unrelated refactoring and unnecessary dependencies.
-- Require explicit approval for significant architectural changes.
-- Verify generated code against functional requirements and acceptance criteria.
-- Use automated tests, type checking and linting as objective verification mechanisms.
-- Separate implementation and review responsibilities where practical.
-- Never expose secrets or sensitive information to AI tools unnecessarily.
-- Do not accept generated evaluation results, performance metrics or claims without verification.
-
-I also distinguish between deterministic software testing and AI evaluation. Traditional tests verify application behavior, API contracts, validation and business logic. AI evaluations measure retrieval quality, answer correctness, grounding, citation accuracy and the ability to abstain when evidence is insufficient.
-
-Both are necessary because a technically correct application can still produce unreliable AI-generated answers.
-
 # Key Technical and Product Decisions
 
 ## 1. Domain-specific product instead of a generic RAG chatbot
@@ -177,21 +126,3 @@ These decisions would depend on actual customer requirements, expected workloads
 
 My general engineering philosophy is to introduce complexity when there is a demonstrated need for it, while keeping the architecture sufficiently modular to accommodate future requirements.
 
-# Before submitting
-
-Consider adding a section titled **Examples of AI-generated suggestions I challenged**. This could be one of the most valuable parts of the README because it demonstrates independent engineering judgment.
-
-Potential examples from our planning discussions include:
-
-| Initial consideration | Decision | Reason |
-|---|---|---|
-| Kafka or asynchronous ingestion workers | Synchronous ingestion initially | Faster MVP delivery |
-| Dedicated vector database | PostgreSQL + pgvector | Reduced infrastructure complexity |
-| Langfuse | LangSmith | LangGraph integration and evaluation workflows |
-| Multiple autonomous agents | Bounded LangGraph workflows | Predictability and execution control |
-| 40 initial evaluation cases | 16 controlled cases | Faster development with meaningful coverage |
-| Custom evaluation dashboard | LangSmith and generated reports | Avoid duplicating existing capabilities |
-| MCP integration in the initial release | Stretch goal | Prioritize the core product |
-| Kubernetes | Docker Compose | Simpler setup and reviewer experience |
-
-**Review note:** This draft is written in the first person based on our planning discussions and agreed architecture. The current implementation has not been inspected. Before submission, adjust it to reflect what you actually implemented and include two or three concrete examples from your Claude Code development sessions. Verify claims about completed features, tests, review workflows and evaluations. Remove this editorial note before submitting.
