@@ -2,7 +2,7 @@
 
 Evidence-grounded document intelligence for pharmaceutical quality and regulatory documentation. Newpage FDE take-home, Option 1.
 
-**Status: Phase 3 in progress.** Implemented: Compose stack, schema, health endpoints, fake model providers, validated PDF/text upload with duplicate detection and original-file viewing (`/api/documents`), page-aware chunking and embeddings (fake offline or OpenAI `text-embedding-3-small`) with atomic ready/failed status, grounded chat (`POST /api/chat`) with hybrid retrieval (vector + full-text, RRF; `RETRIEVAL_MODE=vector` for vector only), document scoping, validated citations derived from the database, one repair attempt and abstention; 45 s request deadline (504 on timeout), bounded history and a heuristic prompt-injection output guard (ADR 0005). Web workspace at http://127.0.0.1:3000: upload/list documents, scoped chat, clickable citations and evidence panel. Playwright browser smoke test (upload → answer → evidence → abstain). Evaluation runner comparing vector vs hybrid retrieval with an offline report (`evals/README.md`). Comparison agent (ADR 0008): LangGraph routes comparison questions (or `mode=compare`) to a bounded loop where the model picks read-only tools (list documents, search one document, read passage), then returns structured findings (supported / potential gap / insufficient evidence) with validated citations from at least two documents, rendered in chat (findings are not saved with the conversation). Not yet: live-model evaluation; the live-model smoke run has not been executed (no API key in this environment).
+**Status: Phase 4 (submission) in progress.** Implemented: Compose stack, schema, health endpoints, fake model providers, validated PDF/text upload with duplicate detection and original-file viewing (`/api/documents`), page-aware chunking and embeddings (fake offline or OpenAI `text-embedding-3-small`) with atomic ready/failed status, grounded chat (`POST /api/chat`) with hybrid retrieval (vector + full-text, RRF; `RETRIEVAL_MODE=vector` for vector only), document scoping, validated citations derived from the database, one repair attempt and abstention; 45 s request deadline (504 on timeout), bounded history and a heuristic prompt-injection output guard (ADR 0005). Web workspace at http://127.0.0.1:3000: upload/list documents, scoped chat, clickable citations and evidence panel. Playwright browser smoke test (upload → answer → evidence → abstain). Evaluation runner comparing vector vs hybrid retrieval with an offline report (`evals/README.md`). Comparison agent (ADR 0008): LangGraph routes comparison questions (or `mode=compare`) to a bounded loop where the model picks read-only tools (list documents, search one document, read passage), then returns structured findings (supported / potential gap / insufficient evidence) with validated citations from at least two documents, rendered in chat (findings are not saved with the conversation). Not yet: live-model evaluation; the live-model smoke run has not been executed (no API key in this environment).
 
 ![Workspace](docs/screenshots/phase1-workspace.png)
 
@@ -11,11 +11,15 @@ Evidence-grounded document intelligence for pharmaceutical quality and regulator
 ## Intended experience
 Upload public or synthetic PDF/text documents, ask questions, inspect exact source passages and compare procedures against reference guidance. Findings are potential gaps for human review, not clinical advice or compliance certification.
 
-## Start implementation
-1. Place this starter in a new Git repository and inspect the files.
-2. Open Claude Code at the repository root (`claude`).
-3. Run `/implement-phase` or ask Claude to read CLAUDE.md and execute Phase 0 only, then proceed through verified exit gates.
-4. Review proposed dependency installs and commands before approval.
+## Documentation
+| Topic | Document |
+|---|---|
+| Architecture, data model, request flows | [docs/architecture.md](docs/architecture.md) |
+| Decisions and trade-offs | [docs/adr/](docs/adr/) (0001–0008) |
+| Security controls and known gaps | [docs/security.md](docs/security.md) |
+| Productionization plan (not implemented) | [docs/productionization.md](docs/productionization.md) |
+| Evaluation method and results | [evals/README.md](evals/README.md) |
+| AI-assisted workflow (factual notes) | [docs/ai-workflow.md](docs/ai-workflow.md) |
 
 ## Local setup
 Prerequisites: Docker with Compose v2. For running checks outside containers: uv (Python 3.12) and Node 24 / npm.
@@ -62,13 +66,15 @@ Live-model smoke (opt-in, not run here): set `MODEL_PROVIDER=openai`, `OPENAI_AP
 LangSmith tracing is optional and off by default (`TRACE_LANGSMITH`, metadata only; ADR 0007).
 
 ## Architecture
-Next.js + shadcn/ui -> FastAPI -> LangGraph -> retrieval/ingestion/model services -> PostgreSQL + pgvector and local file storage. Hybrid FTS/vector retrieval with RRF after baseline. Optional LangSmith tracing and experiment analysis. See [plan](mvp-implementation-plan.md), [roadmap](development-roadmap.md), [product design](docs/product-design.md).
+Next.js + shadcn/ui -> FastAPI -> LangGraph chat graph (rule routing; grounded Q&A or a bounded read-only tool agent for comparisons) -> retrieval, ingestion and model adapters -> PostgreSQL + pgvector and local file storage. Hybrid full-text/vector retrieval fused with RRF. Optional metadata-only LangSmith tracing. Details: [docs/architecture.md](docs/architecture.md); also the [plan](mvp-implementation-plan.md), [roadmap](development-roadmap.md) and [product design](docs/product-design.md).
 
 ## Engineering and evaluation
-Implemented: deterministic unit/integration tests, Playwright browser smoke, versioned evaluation fixtures with label checks, and an offline vector/hybrid comparison (`evals/reports/`, fake providers only; see `evals/README.md`). Structured JSON logs and optional, metadata-only LangSmith tracing (ADR 0007). Planned: live-model evaluation and CI. See roadmap for status. Record actual model/configuration, failures and measured metrics before submission.
+Implemented: deterministic unit/integration tests, Playwright browser smoke, versioned evaluation fixtures with label checks, and an offline vector/hybrid comparison (`evals/reports/`, fake providers only; see `evals/README.md`). Structured JSON logs and optional, metadata-only LangSmith tracing (ADR 0007). CI runs lint, typecheck, unit/integration tests, builds and the browser smoke on every push and pull request (`.github/workflows/ci.yml`; verified locally from a fresh clone, not yet run on GitHub). Planned: live-model evaluation. See roadmap for status. Record actual model/configuration, failures and measured metrics before submission.
 
 ## Productionization
-Proposed AWS ECS Fargate, RDS, S3, managed secrets, auth/RBAC, tenant isolation, durable ingestion jobs, backups, monitoring and incident runbooks. Local demo is not production-ready. No patient data or confidential documents.
+Not production-ready: single-user local demo with no authentication. The proposed path is in [docs/productionization.md](docs/productionization.md): OIDC with RBAC and row-level tenant isolation, ECS Fargate, RDS pgvector, S3 with KMS, Secrets Manager, queued ingestion, eval-gated model changes, monitoring, backups and incident runbooks. Security controls and gaps: [docs/security.md](docs/security.md). No patient data or confidential documents.
 
 ## AI-assisted development and decisions
-Claude Code instructions, phase skill, eval skill and independent reviewer are provided. The author must document actual use, rejected suggestions, trade-offs and skipped standards in their own words. Before submission replace this planning README with verified setup, architecture, RAG decisions, evaluation results, screenshots, limitations and next steps. Do not claim planned features are implemented.
+Factual workflow notes, including review findings and their outcomes: [docs/ai-workflow.md](docs/ai-workflow.md).
+
+> **TODO (author):** describe actual use, rejected suggestions, trade-offs and skipped standards in your own words. Before submission replace this planning README with verified setup, architecture, RAG decisions, evaluation results, screenshots, limitations and next steps. Do not claim planned features are implemented.
