@@ -75,12 +75,15 @@ def test_document_scope_and_forbidden_output_are_valid(case: EvalCase) -> None:
         assert phrase.lower() not in " ".join(case.expected_facts).lower()
 
 
-def test_section_matching_requires_a_heading_line() -> None:
+def test_section_matching_requires_a_heading() -> None:
     text = " 2. Reporting\n Records within 48 hours. See section 3. for details."
     assert section_present(text, "2")
     assert not section_present(text, "3")
     assert section_present("Section 1. Register review", "1")
     assert not section_present(" 12. Other", "2")
+    assert not section_present("Revision 1.0 | CURRENT", "1")
+    # Chunk text has whitespace collapsed; headings must still be found.
+    assert section_present("operations. 2. Deviation reporting All deviations", "2")
 
 
 def test_matching_checks_document_and_page() -> None:
