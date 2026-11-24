@@ -214,3 +214,9 @@ def test_openai_timeouts_raise_model_timeout_error() -> None:
 def test_chat_limits_reject_invalid_values(field: str) -> None:
     with pytest.raises(ValueError):
         Settings(**{field: -1})
+
+
+def test_candidate_pool_must_cover_top_k() -> None:
+    with pytest.raises(ValueError, match="RETRIEVAL_CANDIDATE_POOL"):
+        Settings(retrieval_top_k=8, retrieval_candidate_pool=3)
+    assert Settings(retrieval_mode="vector").retrieval_mode == "vector"

@@ -68,7 +68,7 @@ def test_hybrid_unions_vector_and_keyword_candidates(engine, corpus) -> None:
     assert [str(r.document_id) for r in vector_only] == [cal_id]
     assert [str(r.document_id) for r in keyword_only] == [sop_id]
     assert {str(r.document_id) for r in fused} == {sop_id, cal_id}
-    assert all(r.score == 1 / 61 for r in fused)
+    assert all(r.score == pytest.approx(1 / 61) for r in fused)
 
 
 def test_hybrid_scope_applies_to_both_branches(engine, corpus) -> None:
@@ -88,3 +88,16 @@ def test_chat_answers_in_both_retrieval_modes(make_client, mode: str) -> None:
     ).json()
     assert body["status"] == "answered"
     assert body["citations"][0]["document_name"] == "sop.pdf"
+
+
+@pytest.mark.parametrize("question", ["24", "x" * 2000, "über Säure 2.5 µg"])
+def test_unusual_terms_never_raise(engine, corpus, question: str) -> None:
+    with Session(engine) as session:
+        keyword_search(session, question, None, 5)
+
+
+def test_numeric_query_matches_numbers_in_text(engine, corpus) -> None:
+    sop_id, _ = corpus
+    with Session(engine) as session:
+        results = keyword_search(session, "24", None, 5)
+    assert [str(r.document_id) for r in results] == [sop_id]

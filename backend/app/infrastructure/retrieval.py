@@ -14,11 +14,54 @@ from app.domain.retrieval import (
 )
 from app.infrastructure.models import Chunk, Document
 
-_TERM = re.compile(r"[A-Za-z0-9]+")
-MAX_QUERY_TERMS = 32
+# Unicode letters/digits only: no tsquery operator characters survive.
+_TERM = re.compile(r"[^\W_]+")
+MAX_QUERY_TERMS = 64
+# Common English stopwords dropped before the term cap (PostgreSQL drops them anyway).
+_STOPWORDS = frozenset(
+    [
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "can",
+        "do",
+        "does",
+        "for",
+        "from",
+        "has",
+        "have",
+        "how",
+        "in",
+        "is",
+        "it",
+        "of",
+        "on",
+        "or",
+        "should",
+        "that",
+        "the",
+        "their",
+        "this",
+        "to",
+        "was",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "with",
+    ]
+)
 
 
 def _scoped(statement: Select, document_ids: list[uuid.UUID] | None) -> Select:
+    """Ready documents only; `document_ids` (None = all) must be validated by the caller."""
     statement = statement.join(Document, Document.id == Chunk.document_id).where(
         Document.status == "ready"
     )
@@ -58,9 +101,14 @@ def vector_search(
 def or_tsquery(question: str) -> str:
     """Build a to_tsquery string that ORs the question's alphanumeric terms.
 
-    Only [A-Za-z0-9] runs are kept, so user text cannot inject tsquery operators.
+    Only Unicode letter/digit runs are kept, so user text cannot inject tsquery operators.
+    Stopwords and single non-digit characters are dropped before the term cap.
     """
-    terms = list(dict.fromkeys(term.lower() for term in _TERM.findall(question)))
+    terms = [
+        term
+        for term in dict.fromkeys(t.lower() for t in _TERM.findall(question))
+        if term not in _STOPWORDS and (len(term) > 1 or term.isdigit())
+    ]
     return " | ".join(terms[:MAX_QUERY_TERMS])
 
 

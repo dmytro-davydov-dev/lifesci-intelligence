@@ -43,11 +43,13 @@ def test_empty_rankings_give_empty_result() -> None:
 
 
 def test_or_tsquery_keeps_only_alphanumeric_terms() -> None:
-    assert or_tsquery("Form QA-12: who's approver?") == "form | qa | 12 | who | s | approver"
+    assert or_tsquery("Form QA-12: who's approver?") == "form | qa | 12 | approver"
     assert or_tsquery("'); DROP TABLE chunks; -- & | ! <->") == "drop | table | chunks"
+    assert or_tsquery("Säure 2.5 µg café_x") == "säure | 2 | 5 | µg | café"
     assert or_tsquery("?!") == ""
 
 
 def test_or_tsquery_dedupes_and_caps_terms() -> None:
     assert or_tsquery("QA qa Qa") == "qa"
-    assert len(or_tsquery(" ".join(f"t{i}" for i in range(100))).split(" | ")) == 32
+    assert len(or_tsquery(" ".join(f"t{i}" for i in range(100))).split(" | ")) == 64
+    assert or_tsquery("the " * 100 + "deviation") == "deviation"

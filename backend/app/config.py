@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 EMBEDDING_DIMENSIONS = 1536
@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://127.0.0.1:3000", "http://localhost:3000"]
     db_connect_timeout_seconds: int = 3
     storage_dir: Path = Path("storage")
+
+    @model_validator(mode="after")
+    def _pool_covers_top_k(self) -> "Settings":
+        if self.retrieval_candidate_pool < self.retrieval_top_k:
+            raise ValueError("RETRIEVAL_CANDIDATE_POOL must be >= RETRIEVAL_TOP_K")
+        return self
 
 
 @lru_cache
