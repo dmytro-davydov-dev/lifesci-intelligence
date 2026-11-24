@@ -1,17 +1,16 @@
 # LifeSci Intelligence
 
-Evidence-grounded document intelligence for pharmaceutical quality and regulatory documentation. Newpage FDE take-home, Option 1.
+Evidence-grounded document intelligence for pharmaceutical quality and regulatory documentation.
+Upload SOPs and reference guidance as PDF or text, ask questions in plain language and get answers backed by clickable citations to the exact source passages. When the documents do not support an answer, the assistant says so instead of guessing. A bounded comparison agent checks procedures against reference guidance and reports supported points, potential gaps and missing evidence for human review.
 
-**Status: Phases 0–3 complete and Phase 4 tasks T17, T18 and T20 done (offline-verified). Phase 4 is not complete: the author's README revision (part of T19) and an optional live-model run are pending.** Implemented: Compose stack, schema, health endpoints, fake model providers, validated PDF/text upload with duplicate detection and original-file viewing (`/api/documents`), page-aware chunking and embeddings (fake offline or OpenAI `text-embedding-3-small`) with atomic ready/failed status, grounded chat (`POST /api/chat`) with hybrid retrieval (vector + full-text, RRF; `RETRIEVAL_MODE=vector` for vector only), document scoping, validated citations derived from the database, one repair attempt and abstention; 45 s request deadline (504 on timeout), bounded history and a heuristic prompt-injection output guard (ADR 0005). Web workspace at http://127.0.0.1:3000: upload/list documents, scoped chat, clickable citations and evidence panel. Playwright browser smoke test (upload → answer → evidence → abstain). Evaluation runner comparing vector vs hybrid retrieval with an offline report (`evals/README.md`). Comparison agent (ADR 0008): LangGraph routes comparison questions (or `mode=compare`) to a bounded loop where the model picks read-only tools (list documents, search one document, read passage), then returns structured findings (supported / potential gap / insufficient evidence) with validated citations from at least two documents, rendered in chat (findings are not saved with the conversation). Not yet: live-model evaluation; the live-model smoke run has not been executed (no API key in this environment).
+## Intended experience
+Upload public or synthetic PDF/text documents, ask questions, inspect exact source passages and compare procedures against reference guidance. Findings are potential gaps for human review, not clinical advice or compliance certification.
 
 ![Grounded Q&A with evidence](docs/screenshots/workspace-qa.png)
 
 ![Comparison with structured findings](docs/screenshots/workspace-comparison.png)
 
 *Actual app, offline mode (`MODEL_PROVIDER=fake`), seeded synthetic corpus, captured by the Playwright smoke test (`E2E_SCREENSHOT_DIR`). Top: golden question E01 scoped to SOP-001-v2. Bottom: golden comparison E06 with two documents selected, showing the agent's findings and the cited evidence. The offline extractive stand-in is lexical, not a model: it quotes the documents' header lines rather than the 48-hour and 24-hour sentences, and it never judges alignment, so its only finding is "Insufficient evidence". Live-model output has not been captured (no API key).*
-
-## Intended experience
-Upload public or synthetic PDF/text documents, ask questions, inspect exact source passages and compare procedures against reference guidance. Findings are potential gaps for human review, not clinical advice or compliance certification.
 
 ## Documentation
 | Topic | Document |
@@ -21,6 +20,7 @@ Upload public or synthetic PDF/text documents, ask questions, inspect exact sour
 | Security controls and known gaps | [docs/security.md](docs/security.md) |
 | Productionization plan (not implemented) | [docs/productionization.md](docs/productionization.md) |
 | Evaluation method and results | [evals/README.md](evals/README.md) |
+| AI-assisted development and decisions | [docs/ai-assisted-development-and-decisions.md](docs/ai-assisted-development-and-decisions.md) |
 | AI-assisted workflow (factual notes) | [docs/ai-workflow.md](docs/ai-workflow.md) |
 
 ## Local setup
@@ -85,6 +85,4 @@ Implemented: deterministic unit/integration tests, Playwright browser smoke, ver
 Not production-ready: single-user local demo with no authentication. The proposed path is in [docs/productionization.md](docs/productionization.md): OIDC with RBAC and row-level tenant isolation, ECS Fargate, RDS pgvector, S3 with KMS, Secrets Manager, queued ingestion, eval-gated model changes, monitoring, backups and incident runbooks. Security controls and gaps: [docs/security.md](docs/security.md). No patient data or confidential documents.
 
 ## AI-assisted development and decisions
-Factual workflow notes, including review findings and their outcomes: [docs/ai-workflow.md](docs/ai-workflow.md).
-
-> **TODO (author, required to finish T19):** describe actual use, rejected suggestions, trade-offs and skipped standards in your own words. Also review the rest of this README; if a live-model run is done, record the model, configuration, failures and measured metrics.
+How AI was used in development, quality guardrails, and key technical and product decisions: [docs/ai-assisted-development-and-decisions.md](docs/ai-assisted-development-and-decisions.md). Factual workflow notes, including review findings and their outcomes: [docs/ai-workflow.md](docs/ai-workflow.md).
