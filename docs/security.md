@@ -17,7 +17,7 @@ This app is a single-user local demo. It makes no claim of production security o
 | Availability | 45 s request deadline; provider timeouts are capped at the remaining budget; SDK retries are disabled inside the deadline; history and question length are bounded. | ADR 0005 |
 | Secrets | No secrets are committed (checked in T18). `.env` is gitignored, and the API key is a `SecretStr`. Logs and traces never contain secrets, provider messages or document text by default. | ADR 0007 |
 | Telemetry | LangSmith is off by default and uses app-specific environment variable names. LangChain and LangGraph auto-tracing are forced off even if `LANGSMITH_*` is set. Traces carry metadata only unless `TRACE_INCLUDE_CONTENT=true`, which is meant for approved synthetic data only. | ADR 0007, 0008 |
-| Supply chain | Dependencies are pinned with committed lockfiles, and new packages were releases at least two weeks old. CI actions are pinned to commit SHAs, and the CI token is read-only. | `uv.lock`, `package-lock.json`, `ci.yml` |
+| Supply chain | Dependencies are pinned with committed lockfiles, and the packages added during T07 (frontend), T13 (langsmith) and T14 (langgraph) were chosen from releases at least two weeks old. CI actions are pinned to commit SHAs, and the CI token is read-only. | `uv.lock`, `package-lock.json`, `ci.yml` |
 
 ## Known gaps
 - No authentication, authorization or tenant isolation: anyone who can reach the loopback ports can read every document.

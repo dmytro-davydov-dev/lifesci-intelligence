@@ -25,9 +25,13 @@ def test_manifest_lists_only_sample_documents() -> None:
 def test_demo_fixtures_are_all_listed_and_marked_synthetic() -> None:
     """Provenance: nothing unlisted can be seeded, and every listed file is synthetic."""
     manifest = json.loads((CORPUS_DIR / "manifest.json").read_text())
-    on_disk = {p.name for p in (CORPUS_DIR / "sample-documents").iterdir() if p.is_file()}
+    on_disk = {
+        p.name
+        for p in (CORPUS_DIR / "sample-documents").iterdir()
+        if p.is_file() and not p.name.startswith(".")
+    }
     assert {entry["filename"] for entry in manifest} == on_disk
-    assert all(entry["synthetic"] is True for entry in manifest)
+    assert all(entry.get("synthetic") is True for entry in manifest)
     readme = (CORPUS_DIR / "README.md").read_text()
     assert "All documents are fictional" in readme
     assert "No real patient or company data" in readme

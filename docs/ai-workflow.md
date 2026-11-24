@@ -13,7 +13,7 @@ These are factual notes on how Claude Code was used to build this repository, dr
 - The human set two standing rules during development: commit after each verified task, and implement the recommended option without asking. Both are recorded in Claude Code's project memory.
 - Dependencies were proposed before installation, with exact pins and lockfile and transitive review:
   - `langsmith==0.14.17` (T13) and `langgraph==1.2.20` (T14) were explicitly approved by the human.
-  - Packages were chosen from releases at least two weeks old.
+  - Packages added in T07 (frontend), T13 and T14 were chosen from releases at least two weeks old (recorded in those commits and in ADRs 0007 and 0008).
 - The human supplied the synthetic corpus and the golden dataset. Tests verify the dataset's labels against the fixture text (T11) instead of trusting them.
 
 ## What reviews and tests caught
