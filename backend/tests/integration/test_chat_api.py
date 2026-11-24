@@ -173,10 +173,13 @@ def test_unknown_conversation_returns_404(make_client) -> None:
     assert response.json()["error"]["code"] == "conversation_not_found"
 
 
-def test_compare_mode_is_not_available_yet(make_client) -> None:
-    response = ask(make_client(), "Compare SOP to Q10", mode="compare")
-    assert response.status_code == 422
-    assert response.json()["error"]["code"] == "mode_unavailable"
+def test_compare_mode_with_one_document_asks_for_more_without_model_calls(make_client) -> None:
+    chat = ScriptedChatProvider([])  # any model call would raise IndexError
+    client = make_client(chat_provider=chat)
+    upload(client, SOP)
+    body = ask(client, "Compare SOP to the reference", mode="compare").json()
+    assert (body["status"], body["citations"]) == ("clarification", [])
+    assert chat.calls == []
 
 
 def test_provider_failure_returns_503_and_persists_nothing(make_client, engine: Engine) -> None:
@@ -413,7 +416,8 @@ def test_request_and_chat_events_are_logged_without_content(make_client, caplog)
         if r.getMessage() == "request_completed" and r.fields["path"] == "/api/chat"
     ]
     assert chat.fields["status"] == "answered"
-    assert chat.fields["citations"] == 1 and chat.fields["sources"] >= 1
+    assert chat.fields["citations"] == 1 and chat.fields["retrieved"] >= 1
+    assert chat.fields["intent"] == "qa" and chat.fields["agent_steps"] == 0
     assert request.fields["request_id"] == request_id
     # The contextvar reaches log records emitted in the sync route's threadpool.
     [chat_line] = [json.loads(line) for line in lines if '"chat_completed"' in line]

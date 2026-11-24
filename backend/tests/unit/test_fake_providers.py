@@ -103,3 +103,42 @@ def test_extractive_chat_quotes_best_matching_sentence() -> None:
         reply["answer"]
         == 'The most relevant passage states: "The training room is called Cedar." [S1]'
     )
+
+
+def _agent_step(prompt: str) -> dict:
+    from app.domain.agent import AGENT_STEP_SCHEMA
+
+    raw = ExtractiveChatProvider().complete_json(
+        [ChatMessage("user", prompt)], "agent_step", AGENT_STEP_SCHEMA
+    )
+    return json.loads(raw)
+
+
+def test_fake_agent_lists_searches_named_documents_then_finishes() -> None:
+    import uuid
+
+    from app.application.agent_prompts import build_agent_prompt
+    from app.domain.agent import AgentBudget, ScopedDocument, ToolCall, ToolRecord
+
+    question = "Compare reporting in current SOP-001 and the reference."
+    documents = [
+        ScopedDocument("D1", uuid.uuid4(), "QMS-REF-001.pdf", "1.0"),
+        ScopedDocument("D2", uuid.uuid4(), "SOP-001-v2.pdf", "2.0"),
+        ScopedDocument("D3", uuid.uuid4(), "SOP-004.pdf", None),
+    ]
+    budget = AgentBudget(max_searches=2)
+
+    def prompt(log, listed=True, searches=0):
+        return build_agent_prompt(
+            question, budget, len(log) + 1, searches, documents if listed else None, log, [], set()
+        )
+
+    assert _agent_step(prompt([], listed=False))["action"] == "list_documents"
+    log = [ToolRecord(1, ToolCall("list_documents"), "3 documents")]
+    first = _agent_step(prompt(log))
+    # Both named documents share two name tokens with the question; ties go by label.
+    assert (first["action"], first["document"], first["query"]) == ("search", "D1", question)
+    log.append(ToolRecord(2, ToolCall("search", query=question, document="D1"), "S1 (new)"))
+    assert _agent_step(prompt(log, searches=1))["document"] == "D2"
+    log.append(ToolRecord(3, ToolCall("search", query=question, document="D2"), "S2 (new)"))
+    assert _agent_step(prompt(log, searches=2))["action"] == "finish"

@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     history_max_messages: int = Field(default=6, ge=0)
     history_message_max_chars: int = Field(default=2000, ge=100)
     request_deadline_seconds: float = Field(default=45.0, ge=5)
+    # Comparison agent budgets (model-selected read-only tools).
+    agent_max_steps: int = Field(default=6, ge=1, le=12)
+    agent_max_searches: int = Field(default=3, ge=1, le=6)
+    agent_results_per_search: int = Field(default=4, ge=1, le=20)
     openai_timeout_seconds: float = 30.0
     openai_max_retries: int = 2
     embedding_batch_size: int = 64

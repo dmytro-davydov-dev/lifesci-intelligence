@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Literal, Protocol
 
-RunType = Literal["chain", "retriever", "llm", "embedding"]
+RunType = Literal["chain", "retriever", "llm", "embedding", "tool"]
 
 logger = logging.getLogger("app.tracing")
 

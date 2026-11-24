@@ -47,6 +47,11 @@ _STOPWORDS = frozenset(
 _QUESTION = re.compile(r"QUESTION:\n(?P<q>.*?)\n\nSOURCES", re.S)
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 _SOURCE = re.compile(r'<source id="(?P<id>S\d+)"[^>]*>\n(?P<text>.*?)\n</source>', re.S)
+_AGENT_QUESTION = re.compile(r"QUESTION:\n(?P<q>.*?)\n\nBUDGET", re.S)
+_AGENT_SEARCHES = re.compile(r"searches used (?P<used>\d+) of (?P<max>\d+)")
+_AGENT_DOCUMENT = re.compile(r'^(?P<label>D\d+) name="(?P<name>[^"]*)"', re.M)
+_AGENT_SEARCHED = re.compile(r"^\d+\. search .*? document=(?P<label>D\d+|all) ->", re.M)
+_NAME_TOKEN = re.compile(r"[a-z]+|\d+")
 
 
 def _content_terms(text: str) -> set[str]:
@@ -96,6 +101,8 @@ class ExtractiveChatProvider:
         timeout: float | None = None,
     ) -> str:
         prompt = next((m.content for m in reversed(messages) if m.role == "user"), "")
+        if schema_name == "agent_step":
+            return json.dumps(self._agent_step(prompt))
         question_match = _QUESTION.search(prompt)
         question_terms = _content_terms(question_match.group("q")) if question_match else set()
         needed = min(self.min_overlap, max(len(question_terms), 1))
@@ -124,6 +131,32 @@ class ExtractiveChatProvider:
                 "citation_ids": [best_id],
             }
         )
+
+    @staticmethod
+    def _agent_step(prompt: str) -> dict:
+        """List documents, search each document named in the question (most name tokens
+        first) within the search budget, then finish."""
+        step = {"action": "finish", "query": None, "document": None, "source": None}
+        if "(not listed yet" in prompt:
+            return {**step, "action": "list_documents"}
+        question_match = _AGENT_QUESTION.search(prompt)
+        question = question_match.group("q") if question_match else ""
+        budget = _AGENT_SEARCHES.search(prompt)
+        if budget and int(budget.group("used")) >= int(budget.group("max")):
+            return step
+        wanted = set(_NAME_TOKEN.findall(question.lower()))
+        if "reference" in wanted:
+            wanted.add("ref")
+        searched = set(_AGENT_SEARCHED.findall(prompt))
+        ranked = []
+        for match in _AGENT_DOCUMENT.finditer(prompt):
+            tokens = set(_NAME_TOKEN.findall(match.group("name").lower())) - {"pdf", "txt"}
+            overlap = len(tokens & wanted)
+            if overlap and match.group("label") not in searched:
+                ranked.append((-overlap, int(match.group("label")[1:]), match.group("label")))
+        if not ranked:
+            return step
+        return {**step, "action": "search", "query": question, "document": min(ranked)[2]}
 
     @staticmethod
     def _best_sentence(text: str, question_terms: set[str]) -> str:

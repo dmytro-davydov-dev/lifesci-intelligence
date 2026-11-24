@@ -4,7 +4,7 @@ Status: accepted (T13, 2026-11-24)
 
 ## Decisions
 - **Structured logs:** `app.*` loggers emit JSON lines (`ts`, `level`, `logger`, `event`, `request_id` + event fields) to stderr. A context variable set by the request middleware carries the request id into handlers and threadpool code.
-  - Events: `request_completed` (method, path, status, duration), `chat_completed` (status, retrieval mode, retrieved/source/citation/history counts, duration), `model_usage` (model, prompt/completion/total tokens), `document_ingested`, validation/deadline/injection warnings (reason codes and counts), `trace_failed`.
+  - Events: `request_completed` (method, path, status, duration), `chat_completed` (status, intent, retrieval mode, retrieved/citation/history counts, agent steps, duration), `agent_finished` (stop reason, steps, searches, sources), `model_usage` (model, prompt/completion/total tokens), `document_ingested`, validation/deadline/injection warnings (reason codes and counts), `trace_failed`.
   - Exceptions log the error class only. Uvicorn's access log is disabled to keep a single structured stream.
 - **What is never logged:** document text, questions, answers, provider error messages and secrets.
 - **Tracing interface:** `Tracer`/`Span` in the domain layer, with a no-op default. `ChatService` traces a `chat` root with `retrieve` and per-attempt `model` children, and records the error class on failure.

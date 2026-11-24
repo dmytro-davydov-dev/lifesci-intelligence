@@ -238,16 +238,7 @@ def run_evaluation(
             session_factory,
             embedder,
             chat_provider,
-            ChatSettings(
-                top_k=settings.retrieval_top_k,
-                retrieval_mode=mode,
-                candidate_pool=settings.retrieval_candidate_pool,
-                rrf_k=settings.rrf_k,
-                context_max_tokens=settings.context_max_tokens,
-                history_max_messages=settings.history_max_messages,
-                history_message_max_chars=settings.history_message_max_chars,
-                request_deadline_seconds=settings.request_deadline_seconds,
-            ),
+            ChatSettings.from_settings(settings, retrieval_mode=mode),
         )
         for mode in MODES
     }
