@@ -2,11 +2,13 @@
 
 Evidence-grounded document intelligence for pharmaceutical quality and regulatory documentation. Newpage FDE take-home, Option 1.
 
-**Status: Phase 4 (submission) in progress.** Implemented: Compose stack, schema, health endpoints, fake model providers, validated PDF/text upload with duplicate detection and original-file viewing (`/api/documents`), page-aware chunking and embeddings (fake offline or OpenAI `text-embedding-3-small`) with atomic ready/failed status, grounded chat (`POST /api/chat`) with hybrid retrieval (vector + full-text, RRF; `RETRIEVAL_MODE=vector` for vector only), document scoping, validated citations derived from the database, one repair attempt and abstention; 45 s request deadline (504 on timeout), bounded history and a heuristic prompt-injection output guard (ADR 0005). Web workspace at http://127.0.0.1:3000: upload/list documents, scoped chat, clickable citations and evidence panel. Playwright browser smoke test (upload → answer → evidence → abstain). Evaluation runner comparing vector vs hybrid retrieval with an offline report (`evals/README.md`). Comparison agent (ADR 0008): LangGraph routes comparison questions (or `mode=compare`) to a bounded loop where the model picks read-only tools (list documents, search one document, read passage), then returns structured findings (supported / potential gap / insufficient evidence) with validated citations from at least two documents, rendered in chat (findings are not saved with the conversation). Not yet: live-model evaluation; the live-model smoke run has not been executed (no API key in this environment).
+**Status: Phases 0–4 implemented (offline-verified); author README narrative and an optional live-model run pending.** Implemented: Compose stack, schema, health endpoints, fake model providers, validated PDF/text upload with duplicate detection and original-file viewing (`/api/documents`), page-aware chunking and embeddings (fake offline or OpenAI `text-embedding-3-small`) with atomic ready/failed status, grounded chat (`POST /api/chat`) with hybrid retrieval (vector + full-text, RRF; `RETRIEVAL_MODE=vector` for vector only), document scoping, validated citations derived from the database, one repair attempt and abstention; 45 s request deadline (504 on timeout), bounded history and a heuristic prompt-injection output guard (ADR 0005). Web workspace at http://127.0.0.1:3000: upload/list documents, scoped chat, clickable citations and evidence panel. Playwright browser smoke test (upload → answer → evidence → abstain). Evaluation runner comparing vector vs hybrid retrieval with an offline report (`evals/README.md`). Comparison agent (ADR 0008): LangGraph routes comparison questions (or `mode=compare`) to a bounded loop where the model picks read-only tools (list documents, search one document, read passage), then returns structured findings (supported / potential gap / insufficient evidence) with validated citations from at least two documents, rendered in chat (findings are not saved with the conversation). Not yet: live-model evaluation; the live-model smoke run has not been executed (no API key in this environment).
 
-![Workspace](docs/screenshots/phase1-workspace.png)
+![Grounded Q&A with evidence](docs/screenshots/workspace-qa.png)
 
-*Actual app, offline mode (`MODEL_PROVIDER=fake`), seeded corpus, captured by the Playwright smoke test. The offline extractive stand-in is lexical: here it cites SOP-001-v2 page 2, while the gold evidence for this question ("48 hours") is on page 1. Retrieval and answer quality are measured by the evaluation harness (Phase 2).*
+![Comparison with structured findings](docs/screenshots/workspace-comparison.png)
+
+*Actual app, offline mode (`MODEL_PROVIDER=fake`), seeded synthetic corpus, captured by the Playwright smoke test (`E2E_SCREENSHOT_DIR`). Top: golden question E01 scoped to SOP-001-v2. Bottom: golden comparison E06 with two documents selected, showing the agent's findings and the cited evidence. The offline extractive stand-in is lexical, not a model: it quotes the documents' header lines rather than the 48-hour and 24-hour sentences, and it never judges alignment, so its only finding is "Insufficient evidence". Live-model output has not been captured (no API key).*
 
 ## Intended experience
 Upload public or synthetic PDF/text documents, ask questions, inspect exact source passages and compare procedures against reference guidance. Findings are potential gaps for human review, not clinical advice or compliance certification.
@@ -59,7 +61,7 @@ TEST_DATABASE_URL=postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci_te
 cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm run build
 # browser smoke against the running stack (docker compose up --build --wait):
 cd frontend && npx playwright install chromium && npm run test:e2e
-# optional: E2E_BASE_URL (default http://127.0.0.1:3000), E2E_SCREENSHOT=path.png to save a screenshot
+# optional: E2E_BASE_URL (default http://127.0.0.1:3000), E2E_SCREENSHOT_DIR=../docs/screenshots to save screenshots
 ```
 Live-model smoke (opt-in, not run here): set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` in `.env`, reset and reseed (embeddings from different providers must not be mixed), then run `npm run test:e2e`.
 
@@ -70,6 +72,14 @@ Next.js + shadcn/ui -> FastAPI -> LangGraph chat graph (rule routing; grounded Q
 
 ## Engineering and evaluation
 Implemented: deterministic unit/integration tests, Playwright browser smoke, versioned evaluation fixtures with label checks, and an offline vector/hybrid comparison (`evals/reports/`, fake providers only; see `evals/README.md`). Structured JSON logs and optional, metadata-only LangSmith tracing (ADR 0007). CI runs lint, typecheck, unit/integration tests, builds and the browser smoke on every push and pull request (`.github/workflows/ci.yml`; verified locally from a fresh clone, not yet run on GitHub). Planned: live-model evaluation. See roadmap for status. Record actual model/configuration, failures and measured metrics before submission.
+
+## Limitations (scope review, Phase 4)
+- **No live-model run:** all answers, comparisons and evaluation numbers come from deterministic offline stand-ins or scripted test replies. Real answer quality, gap detection, latency and cost are unmeasured.
+- **Comparison:** routing is a wording rule, so implicit comparisons need `mode=compare`. Findings are not saved with the conversation. Assessments are for human review, never a compliance determination.
+- **Documents:** text-based PDF, TXT and MD only (no OCR or table extraction). Ingestion is synchronous, up to 10 MB and 100 pages.
+- **Retrieval:** exact vector search (fine at demo scale). The section matching used in evaluations is heuristic.
+- **Security:** single-user local demo with no authentication, encryption at rest or rate limiting. The injection guard is heuristic (see [docs/security.md](docs/security.md)).
+- **Not built (Phase 5):** FastMCP tools, cloud deployment, exports, dashboard, SSE, version-aware comparison UI, a larger eval set.
 
 ## Productionization
 Not production-ready: single-user local demo with no authentication. The proposed path is in [docs/productionization.md](docs/productionization.md): OIDC with RBAC and row-level tenant isolation, ECS Fargate, RDS pgvector, S3 with KMS, Secrets Manager, queued ingestion, eval-gated model changes, monitoring, backups and incident runbooks. Security controls and gaps: [docs/security.md](docs/security.md). No patient data or confidential documents.

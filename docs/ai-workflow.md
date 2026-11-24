@@ -34,7 +34,7 @@ Taken from the review commits (the `T10 review`, `T12 review`, `T13 review` and 
 ## Verification discipline and limits
 - No live-model run has been executed, because no API key was available. Every model behaviour in tests and reports comes from deterministic fakes or scripted replies, and the eval reports and README say so.
 - The comparison assessment labels (`evals/comparison-labels.json`) were derived from the corpus README's documented gaps. They are kept separate from the human-supplied golden dataset.
-- The screenshots in `docs/screenshots/` are captured from the running app by Playwright, not mocked.
+- The screenshots in `docs/screenshots/` are captured from the running app by Playwright (`E2E_SCREENSHOT_DIR`), not mocked.
 - CI (`.github/workflows/ci.yml`) has been run locally from a fresh clone, step by step, but not yet on GitHub.
 
 ## Left to the human

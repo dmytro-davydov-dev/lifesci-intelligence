@@ -9,7 +9,7 @@ const REFERENCE = path.join(SAMPLE_DIR, "QMS-REF-001.pdf");
 const COMPARISON = "Compare reporting deadlines in current SOP-001 and QMS-REF-001."; // golden E06
 const ANSWERABLE = "How soon must a deviation be recorded under the current SOP-001?"; // golden E01
 const UNANSWERABLE = "What is the approved storage temperature for product NB-42?"; // golden E12
-const SCREENSHOT = process.env.E2E_SCREENSHOT; // optional output path for docs
+const SCREENSHOT_DIR = process.env.E2E_SCREENSHOT_DIR; // optional output directory for docs
 
 function trackPageErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -63,7 +63,7 @@ test("upload, ask, inspect evidence, abstain and detect duplicates", async ({ pa
   // PDFs must not get CSP `sandbox` (used for text files): it blocks the browser PDF viewer.
   expect(file.headers()["content-security-policy"] ?? "").not.toContain("sandbox");
 
-  if (SCREENSHOT) await page.screenshot({ path: SCREENSHOT, fullPage: true });
+  if (SCREENSHOT_DIR) await page.screenshot({ path: path.join(SCREENSHOT_DIR, "workspace-qa.png"), fullPage: true });
 
   const abstention = await ask(page, UNANSWERABLE);
   await expect(abstention.getByText("Insufficient evidence")).toBeVisible();
@@ -92,6 +92,11 @@ test("compares two selected documents with structured findings", async ({ page }
   const sources = answer.getByRole("list", { name: "Sources" });
   await expect(sources.getByRole("button", { name: /SOP-001-v2\.pdf/ })).toBeVisible();
   await expect(sources.getByRole("button", { name: /QMS-REF-001\.pdf/ })).toBeVisible();
+  await sources.getByRole("button", { name: /QMS-REF-001\.pdf/ }).click();
+  await expect(page.getByTestId("evidence-passage")).toContainText("QMS-REF-001");
+  if (SCREENSHOT_DIR) {
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "workspace-comparison.png"), fullPage: true });
+  }
 
   expect(errors).toEqual([]);
 });

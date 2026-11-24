@@ -34,7 +34,7 @@ Exit: live comparison demo or clearly documented fallback to Q&A; no fake tool e
 - [x] T17 CI lint/typecheck/unit/integration/build; browser smoke where feasible. (.github/workflows/ci.yml; same commands pass locally, workflow not yet run on GitHub: not pushed.)
 - [x] T18 Verify clean startup, reset procedure and demo fixture provenance; remove secrets and generated clutter. (Fresh-clone checks, Compose start, seed, smoke and reset verified; no secrets in tracked files; ignored local outputs left in place.)
 - [x] T19 Write architecture, ADRs, productionization, security and actual AI workflow notes; human revises README. (docs/architecture.md, security.md, productionization.md, ai-workflow.md; README narrative left to the author.)
-- [ ] T20 Capture screenshots and optionally record five-minute demo; final scope/limitations review.
+- [x] T20 Capture screenshots and optionally record five-minute demo; final scope/limitations review. (Q&A and comparison screenshots captured by Playwright from the running app; demo video not recorded; limitations in README.)
 Exit: repository is submission-ready; all claims backed by code or actual results.
 
 ## Phase 5 — only if time remains (P2)
