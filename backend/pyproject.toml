@@ -39,5 +39,8 @@ ignore = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["integration: requires a running PostgreSQL with pgvector (DATABASE_URL)"]
+markers = [
+    "integration: requires a running PostgreSQL with pgvector (TEST_DATABASE_URL)",
+    "security: uses adversarial fixtures from lifesci-test-data/adversarial-documents",
+]
 addopts = "-ra"

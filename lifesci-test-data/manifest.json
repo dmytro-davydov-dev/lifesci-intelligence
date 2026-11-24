@@ -1,0 +1,58 @@
+[
+  {
+    "filename": "QMS-REF-001.pdf",
+    "document_id": "QMS-REF-001",
+    "version": "1.0",
+    "status": "current",
+    "pages": 2,
+    "synthetic": true
+  },
+  {
+    "filename": "SOP-001-v2.pdf",
+    "document_id": "SOP-001-v2",
+    "version": "2.0",
+    "status": "current",
+    "pages": 2,
+    "synthetic": true
+  },
+  {
+    "filename": "SOP-001-v1.pdf",
+    "document_id": "SOP-001-v1",
+    "version": "1.0",
+    "status": "superseded",
+    "pages": 1,
+    "synthetic": true
+  },
+  {
+    "filename": "SOP-002.pdf",
+    "document_id": "SOP-002",
+    "version": "1.0",
+    "status": "current",
+    "pages": 2,
+    "synthetic": true
+  },
+  {
+    "filename": "SOP-003.pdf",
+    "document_id": "SOP-003",
+    "version": "1.0",
+    "status": "current",
+    "pages": 1,
+    "synthetic": true
+  },
+  {
+    "filename": "SOP-004.pdf",
+    "document_id": "SOP-004",
+    "version": "1.0",
+    "status": "current",
+    "pages": 1,
+    "synthetic": true
+  },
+  {
+    "filename": "OPS-NOTE-001.txt",
+    "document_id": "OPS-NOTE-001",
+    "version": null,
+    "status": "informational",
+    "pages": null,
+    "synthetic": true
+  }
+]

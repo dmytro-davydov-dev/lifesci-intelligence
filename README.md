@@ -24,11 +24,27 @@ curl http://127.0.0.1:8000/health/ready   # {"status":"ok","database":"ok"}
 
 Web UI: http://127.0.0.1:3000 · API: http://127.0.0.1:8000 (docs at `/docs`) · Postgres: 127.0.0.1:5432. All ports bind to loopback only. The API applies Alembic migrations on startup. Reset local data with `docker compose down -v` (deletes the database volume).
 
+### Test corpus
+`lifesci-test-data/` is the version-controlled, fully synthetic corpus (fictional Northstar Biologics SOPs and a fictional reference; see its README). It is used for development, integration tests and evaluations:
+
+| Path | Use |
+|---|---|
+| `sample-documents/` + `manifest.json` | Knowledge-base content; the only files the seed command ingests |
+| `evals/golden-dataset.json` | Evaluation questions and expected answers; never ingested |
+| `adversarial-documents/` | Prompt-injection fixtures; only ingested by `pytest -m security` tests in the `_test` database |
+
+```bash
+docker compose exec api python -m app.seed      # seed the running stack (corpus mounted read-only at /data/lifesci-test-data)
+cd backend && uv run python -m app.seed          # same, from the host, using the repo-relative corpus and DATABASE_URL
+```
+Seeding is idempotent (re-runs report `duplicate`) and stores each manifest `version`. Paths are project-relative, so the same commands and tests work in CI checkouts.
+
 ### Checks
 ```bash
 cd backend && uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest
 # integration tests need the Compose DB running; they create/migrate a separate *_test database:
 TEST_DATABASE_URL=postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci_test REQUIRE_INTEGRATION=1 uv run pytest
+uv run pytest -m security    # adversarial fixtures only (needs TEST_DATABASE_URL); -m "not security" excludes them
 cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm run build
 ```
 LangSmith is optional and off by default (not yet wired).

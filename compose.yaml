@@ -27,8 +27,10 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-}
       STORAGE_DIR: /data/storage
+      CORPUS_DIR: /data/lifesci-test-data
     volumes:
       - doc-storage:/data/storage
+      - ./lifesci-test-data:/data/lifesci-test-data:ro
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:

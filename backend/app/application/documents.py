@@ -51,7 +51,7 @@ class DocumentService:
         self._read_pdf_pages = read_pdf_pages
         self._ingestion = ingestion
 
-    def upload(self, filename: str | None, data: bytes) -> UploadResult:
+    def upload(self, filename: str | None, data: bytes, version: str | None = None) -> UploadResult:
         upload = validate_upload(filename, data)
         sha256 = hashlib.sha256(data).hexdigest()
 
@@ -71,6 +71,7 @@ class DocumentService:
                 document = DocumentRepository(session).add(
                     Document(
                         name=upload.name,
+                        version=version[:50] if version else None,
                         sha256=sha256,
                         media_type=upload.media_type,
                         storage_key=key,
