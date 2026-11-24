@@ -11,6 +11,7 @@ from sqlalchemy import Engine, create_engine, make_url, text
 from app.config import Settings
 from app.domain.deadline import Clock
 from app.domain.providers import ChatProvider, EmbeddingProvider
+from app.domain.tracing import Tracer
 from app.main import create_app
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -82,13 +83,16 @@ def make_client(database_url: str, clean_db: None, storage_dir: Path) -> Iterato
         embedder: EmbeddingProvider | None = None,
         chat_provider: ChatProvider | None = None,
         clock: Clock | None = None,
+        tracer: Tracer | None = None,
         settings_overrides: dict | None = None,
         **client_kwargs,
     ) -> TestClient:
         settings = Settings(
             database_url=database_url, storage_dir=storage_dir, **(settings_overrides or {})
         )
-        app = create_app(settings, embedder=embedder, chat_provider=chat_provider, clock=clock)
+        app = create_app(
+            settings, embedder=embedder, chat_provider=chat_provider, clock=clock, tracer=tracer
+        )
         test_client = TestClient(app, **client_kwargs)
         clients.append(test_client.__enter__())
         return test_client

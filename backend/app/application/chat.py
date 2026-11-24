@@ -15,6 +15,7 @@ from app.application.prompts import (
     build_user_prompt,
     history_content,
 )
+from app.application.trace_payloads import TracePayloads
 from app.domain.answers import (
     ANSWER_SCHEMA,
     INSUFFICIENT_EVIDENCE_MESSAGE,
@@ -34,6 +35,7 @@ from app.domain.injection import (
 )
 from app.domain.providers import ChatMessage, ChatProvider, EmbeddingProvider, ModelTimeoutError
 from app.domain.retrieval import RetrievedChunk, Source, select_sources
+from app.domain.tracing import NoopTracer, Span, Tracer
 from app.infrastructure.conversation_repository import ConversationRepository
 from app.infrastructure.models import Document
 from app.infrastructure.retrieval import hybrid_search, vector_search
@@ -116,12 +118,16 @@ class ChatService:
         chat: ChatProvider,
         settings: ChatSettings | None = None,
         clock: Clock = time.monotonic,
+        tracer: Tracer | None = None,
+        trace_payloads: TracePayloads | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._embedder = embedder
         self._chat = chat
         self._settings = settings or ChatSettings()
         self._clock = clock
+        self._tracer = tracer or NoopTracer()
+        self._payloads = trace_payloads or TracePayloads()
 
     def ask(
         self,
@@ -130,9 +136,36 @@ class ChatService:
         document_ids: list[uuid.UUID] | None = None,
         mode: Mode = "auto",
     ) -> ChatResult:
+        root = self._tracer.start(
+            "chat",
+            "chain",
+            self._payloads.chat_inputs(question.strip(), document_ids, mode),
+            {"retrieval_mode": self._settings.retrieval_mode, "top_k": self._settings.top_k},
+        )
+        try:
+            result = self._ask(question, conversation_id, document_ids, mode, root)
+        except Exception as exc:
+            root.end(error=type(exc).__name__)
+            raise
+        root.end(
+            self._payloads.chat_outputs(
+                result.status, result.answer, [c.label for c in result.citations]
+            )
+        )
+        return result
+
+    def _ask(
+        self,
+        question: str,
+        conversation_id: uuid.UUID | None,
+        document_ids: list[uuid.UUID] | None,
+        mode: Mode,
+        root: Span,
+    ) -> ChatResult:
         if mode == "compare":
             raise ModeUnavailableError("Comparison mode is not available yet; use qa or auto.")
         question = question.strip()
+        started = self._clock()
         deadline = Deadline(self._settings.request_deadline_seconds, self._clock)
         # Embed before opening a session so no pooled connection is held during the call.
         query_vector = self._embedder.embed([question], timeout=_budget(deadline))[0]
@@ -160,16 +193,32 @@ class ChatService:
                 )
                 for m in history
             ]
+            retrieval = root.child("retrieve", "retriever", {"mode": self._settings.retrieval_mode})
             chunks = self._retrieve(session, query_vector, question, document_ids)
+            retrieval.end(self._payloads.retrieved(chunks))
 
         sources = select_sources(chunks, self._settings.context_max_tokens)
         if sources:
             status, answer, citations = self._generate(
-                question, history_messages, sources, deadline
+                question, history_messages, sources, deadline, root
             )
         else:
             status, answer, citations = "insufficient_evidence", INSUFFICIENT_EVIDENCE_MESSAGE, []
 
+        logger.info(
+            "chat_completed",
+            extra={
+                "fields": {
+                    "status": status,
+                    "retrieval_mode": self._settings.retrieval_mode,
+                    "retrieved": len(chunks),
+                    "sources": len(sources),
+                    "citations": len(citations),
+                    "history_messages": len(history_messages),
+                    "duration_ms": round((self._clock() - started) * 1000, 1),
+                }
+            },
+        )
         with self._session_factory.begin() as session:
             conversations = ConversationRepository(session)
             if conversation_id is None:
@@ -219,11 +268,24 @@ class ChatService:
         history: list[ChatMessage],
         sources: list[Source],
         deadline: Deadline,
+        root: Span,
     ) -> tuple[AnswerStatus, str, list[Citation]]:
         labels = [source.label for source in sources]
         injected = injection_ngrams([source.chunk.text for source in sources], question)
         if injected:
             logger.warning("injection_suspected ngrams=%d", len(injected))
+
+        def complete(attempt: int) -> str:
+            span = root.child("model", "llm", self._payloads.sources(sources, attempt))
+            try:
+                raw = self._chat.complete_json(
+                    messages, "grounded_answer", ANSWER_SCHEMA, timeout=_budget(deadline)
+                )
+            except Exception as exc:
+                span.end(error=type(exc).__name__)
+                raise
+            span.end({"output_chars": len(raw)})
+            return raw
 
         def check(raw: str) -> ValidatedAnswer:
             validated = validate_answer(raw, set(labels))
@@ -244,9 +306,7 @@ class ChatService:
             *history,
             ChatMessage("user", build_user_prompt(question, sources)),
         ]
-        raw = self._chat.complete_json(
-            messages, "grounded_answer", ANSWER_SCHEMA, timeout=_budget(deadline)
-        )
+        raw = complete(1)
         try:
             validated = check(raw)
         except AnswerValidationError as first_error:
@@ -259,9 +319,7 @@ class ChatService:
                 ChatMessage("user", build_repair_prompt(str(first_error), labels)),
             ]
             try:
-                raw = self._chat.complete_json(
-                    messages, "grounded_answer", ANSWER_SCHEMA, timeout=_budget(deadline)
-                )
+                raw = complete(2)
             except ModelTimeoutError:
                 logger.warning("answer_repair_failed reason=timeout")
                 return "insufficient_evidence", INSUFFICIENT_EVIDENCE_MESSAGE, []

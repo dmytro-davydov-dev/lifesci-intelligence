@@ -2,6 +2,7 @@
 
 import logging
 import re
+import time
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 
@@ -10,6 +11,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
+
+from app.infrastructure.observability import request_id_var
 
 logger = logging.getLogger("app.api")
 
@@ -62,6 +65,29 @@ def install_error_handling(app: FastAPI, max_request_bytes: int) -> None:
         request.state.request_id = (
             incoming if _SAFE_REQUEST_ID.fullmatch(incoming) else uuid.uuid4().hex
         )
+        token = request_id_var.set(request.state.request_id)
+        started = time.perf_counter()
+        try:
+            response = await _dispatch(request, call_next)
+        finally:
+            request_id_var.reset(token)
+        logger.info(
+            "request_completed",
+            extra={
+                "fields": {
+                    "request_id": request.state.request_id,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": response.status_code,
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+                }
+            },
+        )
+        return response
+
+    async def _dispatch(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         declared = request.headers.get("content-length", "")
         if declared.isdigit() and int(declared) > max_request_bytes:
             return error_response(request, 413, "file_too_large", "Request body is too large.")

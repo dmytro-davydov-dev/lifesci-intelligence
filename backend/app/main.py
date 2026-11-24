@@ -14,13 +14,19 @@ from app.api.health import ReadinessCheck
 from app.application.chat import ChatService, ChatSettings
 from app.application.documents import DocumentService
 from app.application.ingestion import IngestionService
+from app.application.trace_payloads import TracePayloads
 from app.config import Settings, get_settings
 from app.domain.deadline import Clock
 from app.domain.documents import MAX_UPLOAD_BYTES
 from app.domain.providers import ChatProvider, EmbeddingProvider
+from app.domain.tracing import Tracer
 from app.infrastructure.db import create_db_engine, database_is_ready
 from app.infrastructure.pdf import read_pdf_pages
-from app.infrastructure.providers import build_chat_provider, build_embedding_provider
+from app.infrastructure.providers import (
+    build_chat_provider,
+    build_embedding_provider,
+    build_tracer,
+)
 from app.infrastructure.storage import LocalFileStorage
 
 # Multipart framing overhead allowed on top of the file size limit.
@@ -33,6 +39,7 @@ def create_app(
     embedder: EmbeddingProvider | None = None,
     chat_provider: ChatProvider | None = None,
     clock: Clock | None = None,
+    tracer: Tracer | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     embedder = embedder or build_embedding_provider(settings)
@@ -72,6 +79,8 @@ def create_app(
             request_deadline_seconds=settings.request_deadline_seconds,
         ),
         clock=clock or time.monotonic,
+        tracer=tracer or build_tracer(settings),
+        trace_payloads=TracePayloads(include_content=settings.trace_include_content),
     )
 
     install_error_handling(app, max_request_bytes=MAX_UPLOAD_BYTES + _MULTIPART_OVERHEAD_BYTES)

@@ -61,7 +61,7 @@ LangSmith is optional and off by default (not yet wired).
 Next.js + shadcn/ui -> FastAPI -> LangGraph -> retrieval/ingestion/model services -> PostgreSQL + pgvector and local file storage. Hybrid FTS/vector retrieval with RRF after baseline. Optional LangSmith tracing and experiment analysis. See [plan](mvp-implementation-plan.md), [roadmap](development-roadmap.md), [product design](docs/product-design.md).
 
 ## Engineering and evaluation
-Implemented: deterministic unit/integration tests, Playwright browser smoke, versioned evaluation fixtures with label checks, and an offline vector/hybrid comparison (`evals/reports/`, fake providers only; see `evals/README.md`). Planned: live-model evaluation, structured logs and CI. See roadmap for status. Record actual model/configuration, failures and measured metrics before submission.
+Implemented: deterministic unit/integration tests, Playwright browser smoke, versioned evaluation fixtures with label checks, and an offline vector/hybrid comparison (`evals/reports/`, fake providers only; see `evals/README.md`). Structured JSON logs and optional, metadata-only LangSmith tracing (ADR 0007). Planned: live-model evaluation and CI. See roadmap for status. Record actual model/configuration, failures and measured metrics before submission.
 
 ## Productionization
 Proposed AWS ECS Fargate, RDS, S3, managed secrets, auth/RBAC, tenant isolation, durable ingestion jobs, backups, monitoring and incident runbooks. Local demo is not production-ready. No patient data or confidential documents.

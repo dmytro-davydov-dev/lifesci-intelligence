@@ -382,3 +382,66 @@ def test_history_messages_are_truncated_before_replay(make_client) -> None:
     replayed = chat.calls[1][2].content
     assert replayed.endswith(" [truncated]")
     assert len(replayed) <= 2000 + len(" [truncated]")
+
+
+def test_request_and_chat_events_are_logged_without_content(make_client, caplog) -> None:
+    client = make_client()
+    upload(client, SOP)
+    question = "Within how many hours must a deviation be reported to Quality Assurance?"
+
+    with caplog.at_level("INFO", logger="app"):
+        response = ask(
+            client,
+            question,
+        )
+
+    request_id = response.headers["X-Request-ID"]
+    [chat] = [r for r in caplog.records if r.getMessage() == "chat_completed"]
+    [request] = [
+        r
+        for r in caplog.records
+        if r.getMessage() == "request_completed" and r.fields["path"] == "/api/chat"
+    ]
+    assert chat.fields["status"] == "answered"
+    assert chat.fields["citations"] == 1 and chat.fields["sources"] >= 1
+    assert request.fields["request_id"] == request_id
+    assert request.fields["status"] == 200 and request.fields["duration_ms"] >= 0
+    assert question not in caplog.text
+    assert "Quality Assurance within" not in caplog.text
+
+
+def test_chat_is_traced_with_metadata_only(make_client) -> None:
+    from tests.support.tracing import RecordingTracer
+
+    tracer = RecordingTracer()
+    client = make_client(tracer=tracer)
+    upload(client, SOP)
+    question = "Within how many hours must a deviation be reported to Quality Assurance?"
+
+    assert ask(client, question).json()["status"] == "answered"
+
+    [root] = tracer.roots
+    assert root.name == "chat" and root.ended and root.error is None
+    assert [c.name for c in root.children] == ["retrieve", "model"]
+    assert root.outputs["status"] == "answered" and root.outputs["citations"] == ["S1"]
+    assert root.children[1].inputs["sources"][0]["label"] == "S1"
+    dump = repr(root)
+    assert question not in dump and "Quality Assurance within" not in dump
+
+
+def test_tracing_failure_does_not_affect_chat(make_client) -> None:
+    from app.domain.tracing import SafeTracer
+    from tests.support.tracing import FailingTracer
+
+    client = make_client(tracer=SafeTracer(FailingTracer()))
+    upload(client, SOP)
+    assert ask(client, "When are deviations reported?").status_code == 200
+
+
+def test_chat_errors_are_recorded_on_the_root_span(make_client) -> None:
+    from tests.support.tracing import RecordingTracer
+
+    tracer = RecordingTracer()
+    response = ask(make_client(tracer=tracer), "Hi?", conversation_id=str(uuid.uuid4()))
+    assert response.status_code == 404
+    assert tracer.roots[0].error == "ConversationNotFoundError"

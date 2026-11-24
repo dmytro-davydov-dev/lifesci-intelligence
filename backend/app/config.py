@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://127.0.0.1:3000", "http://localhost:3000"]
     db_connect_timeout_seconds: int = 3
     storage_dir: Path = Path("storage")
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    # Optional LangSmith tracing; off by default and never required for tests.
+    langsmith_tracing: bool = False
+    langsmith_api_key: SecretStr | None = None
+    langsmith_project: str = "lifesci-intelligence"
+    langsmith_endpoint: str | None = None
+    # Adds question/answer/source text to traces. Approved public/synthetic data only.
+    trace_include_content: bool = False
 
     @model_validator(mode="after")
     def _pool_covers_top_k(self) -> "Settings":

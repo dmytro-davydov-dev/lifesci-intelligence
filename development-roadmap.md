@@ -21,7 +21,7 @@ Exit: working MVP vertical slice with citations and reproducible startup. Captur
 - [x] T10 Add FTS/RRF hybrid retrieval and unit/integration tests.
 - [x] T11 Create 12-15 labeled eval cases (factual, comparison, unsupported, ambiguity, injection, extraction where implemented). (16 user-supplied cases in lifesci-test-data/evals; labels verified against fixture text by tests.)
 - [x] T12 Run vector vs hybrid on same fixtures; record Recall@K, MRR, correctness/abstention and latency/cost when available. (Offline fake-provider run in evals/reports; live run not executed: no API key; tokens/cost unavailable.)
-- [ ] T13 Add optional LangSmith traces, redaction policy and trace failure isolation; structured logs.
+- [x] T13 Add optional LangSmith traces, redaction policy and trace failure isolation; structured logs. (Live LangSmith run not executed: no key.)
 Exit: deterministic tests pass; actual evaluation report exists (live runs marked unavailable if no key).
 
 ## Phase 3 — agentic differentiator (P1)

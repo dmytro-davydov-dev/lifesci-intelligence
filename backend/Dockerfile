@@ -14,4 +14,4 @@ COPY app ./app
 RUN useradd --system --uid 10001 appuser && mkdir -p /data/storage && chown appuser /data/storage
 USER appuser
 EXPOSE 8000
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.asgi:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.asgi:app --host 0.0.0.0 --port 8000 --no-access-log"]

@@ -1,5 +1,6 @@
 """OpenAI model adapters."""
 
+import logging
 from typing import Any
 
 import openai
@@ -8,6 +9,26 @@ from app.config import EMBEDDING_DIMENSIONS
 from app.domain.providers import ChatError, ChatMessage, EmbeddingError, ModelTimeoutError
 
 _NON_RETRYABLE_STATUS = {400, 401, 403, 404, 422}
+
+logger = logging.getLogger("app.model")
+
+
+def _log_usage(kind: str, model: str, usage: Any) -> None:
+    """Token counts only; never prompt or completion text."""
+    if usage is None:
+        return
+    logger.info(
+        "model_usage",
+        extra={
+            "fields": {
+                "kind": kind,
+                "model": model,
+                "prompt_tokens": getattr(usage, "prompt_tokens", None),
+                "completion_tokens": getattr(usage, "completion_tokens", None),
+                "total_tokens": getattr(usage, "total_tokens", None),
+            }
+        },
+    )
 
 
 def _safe_message(exc: openai.OpenAIError, action: str, retry_hint: str) -> str:
@@ -53,6 +74,7 @@ class OpenAIEmbeddingProvider:
             raise EmbeddingError(
                 _safe_message(exc, "Embedding request", "Retry the upload later.")
             ) from exc
+        _log_usage("embedding", self._model, getattr(response, "usage", None))
         return [item.embedding for item in sorted(response.data, key=lambda item: item.index)]
 
 
@@ -90,6 +112,7 @@ class OpenAIChatProvider:
             raise ModelTimeoutError("Model request timed out (APITimeoutError).") from exc
         except openai.OpenAIError as exc:
             raise ChatError(_safe_message(exc, "Model request", "Try again shortly.")) from exc
+        _log_usage("chat", self._model, getattr(response, "usage", None))
         choice = response.choices[0]
         message = choice.message
         if getattr(choice, "finish_reason", None) == "length":
