@@ -27,7 +27,7 @@ Exit: deterministic tests pass; actual evaluation report exists (live runs marke
 ## Phase 3 — agentic differentiator (P1)
 - [x] T14 Implement LangGraph state, intent routing and model-selected read-only tools with bounded iterations. (Offline/scripted providers only; live run not executed: no API key.)
 - [x] T15 Compare reference and SOP evidence; return structured findings with citations and uncertainty. (Offline/scripted providers only; live run not executed: no API key.)
-- [ ] T16 Test tool routing, budget exhaustion, invalid citations and missing evidence; add comparison evals.
+- [x] T16 Test tool routing, budget exhaustion, invalid citations and missing evidence; add comparison evals. (Assessment labels in evals/comparison-labels.json derived from the corpus README; offline run only, live run not executed: no API key.)
 Exit: live comparison demo or clearly documented fallback to Q&A; no fake tool execution.
 
 ## Phase 4 — submission (P0)

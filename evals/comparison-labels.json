@@ -1,0 +1,10 @@
+{
+  "provenance": "Expected comparison assessments derived from lifesci-test-data/README.md ('Intentional gaps': SOP-001 48h vs reference 24h; major deviations lack mandatory root cause analysis; SOP-002 lacks a measurable effectiveness criterion and 90-day verification; SOP-003 aligns with the reference) and from the cases' expected_facts. Not part of the user-supplied golden dataset. E10 compares revisions, not a procedure against a reference, so it has no assessment label.",
+  "cases": {
+    "E06": {"expected_assessment": "potential_gap"},
+    "E07": {"expected_assessment": "potential_gap"},
+    "E08": {"expected_assessment": "potential_gap"},
+    "E09": {"expected_assessment": "supported"},
+    "E10": {"expected_assessment": null}
+  }
+}

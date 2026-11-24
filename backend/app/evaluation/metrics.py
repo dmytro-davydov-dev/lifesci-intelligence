@@ -4,6 +4,7 @@ import math
 import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from app.corpus import EvidenceRef
 from app.evaluation.evidence import EvidenceCandidate, matches
@@ -116,3 +117,57 @@ def summarize(results: Sequence[CaseResult]) -> dict[str, float | int | None]:
         "latency_ms_p95": percentile(latencies, 95),
     }
     return summary
+
+
+def gold_document_coverage(
+    cited_documents: Sequence[str], gold: Sequence[EvidenceRef]
+) -> float | None:
+    """Share of gold documents that at least one citation points into."""
+    documents = {ref.document_id for ref in gold}
+    if not documents:
+        return None
+    return len(documents & set(cited_documents)) / len(documents)
+
+
+@dataclass(frozen=True)
+class ComparisonCaseResult:
+    case_id: str
+    category: str
+    expected_status: str
+    status: str
+    intent: str
+    # Recall over every passage the agent gathered (its searches, not one ranking).
+    evidence_recall: float | None
+    gold_document_coverage: float | None
+    citation_precision: float | None
+    assessments: list[str]
+    expected_assessment: str | None
+    agent_steps: int
+    latency_ms: float
+    error: str | None = None
+
+    @property
+    def assessment_match(self) -> bool | None:
+        """Whether any finding carries the labelled assessment (None when unlabelled)."""
+        if self.expected_assessment is None or self.error is not None:
+            return None
+        return self.expected_assessment in self.assessments
+
+
+def summarize_comparison(results: Sequence[ComparisonCaseResult]) -> dict[str, Any]:
+    labelled = [r.assessment_match for r in results if r.assessment_match is not None]
+    latencies = [r.latency_ms for r in results if r.error is None]
+    return {
+        "cases": len(results),
+        "errors": sum(r.error is not None for r in results),
+        "routed_to_compare": sum(r.intent == "compare" for r in results),
+        "status_accuracy": mean([float(r.status == r.expected_status) for r in results]),
+        "evidence_recall": mean([r.evidence_recall for r in results]),
+        "gold_document_coverage": mean([r.gold_document_coverage for r in results]),
+        "citation_gold_precision": mean([r.citation_precision for r in results]),
+        "assessment_accuracy": mean([float(m) for m in labelled]),
+        "labelled_cases": len(labelled),
+        "mean_agent_steps": mean([float(r.agent_steps) for r in results if r.error is None]),
+        "latency_ms_p50": percentile(latencies, 50),
+        "latency_ms_p95": percentile(latencies, 95),
+    }

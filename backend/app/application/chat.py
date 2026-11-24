@@ -81,6 +81,7 @@ class ChatResult:
     retrieved: list[RetrievedChunk] = field(default_factory=list)
     intent: str = "qa"
     findings: list[Finding] = field(default_factory=list)
+    agent_steps: int = 0
 
 
 @dataclass(frozen=True)
@@ -254,6 +255,7 @@ class ChatService:
             outcome.retrieved,
             intent,
             outcome.findings,
+            state.get("step", 0),
         )
 
     def _run_graph(self, context: ChatContext) -> ChatState:

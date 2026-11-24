@@ -29,7 +29,7 @@ from alembic.config import Config
 from sqlalchemy import URL, create_engine, make_url, text
 from sqlalchemy.orm import sessionmaker
 
-from app.application.chat import ChatService, ChatSettings, RetrievalMode
+from app.application.chat import ChatResult, ChatService, ChatSettings, RetrievalMode
 from app.config import Settings
 from app.corpus import (
     GOLDEN_DATASET,
@@ -40,18 +40,22 @@ from app.corpus import (
     load_golden_dataset,
     sample_documents,
 )
+from app.domain.intent import route_intent
 from app.domain.providers import ChatError, EmbeddingError
 from app.domain.retrieval import RetrievedChunk
 from app.evaluation.evidence import EvidenceCandidate
 from app.evaluation.metrics import (
     RECALL_KS,
     CaseResult,
+    ComparisonCaseResult,
     citation_gold_precision,
     contains_forbidden,
+    gold_document_coverage,
     literal_fact_recall,
     recall_at_k,
     reciprocal_rank,
     summarize,
+    summarize_comparison,
 )
 from app.infrastructure.db import create_db_engine
 from app.infrastructure.models import Chunk, Document
@@ -59,6 +63,9 @@ from app.seed import seed_corpus
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_REPORT_DIR = BACKEND_DIR.parent / "evals" / "reports"
+COMPARISON_LABELS = BACKEND_DIR.parent / "evals" / "comparison-labels.json"
+COMPARISON_CATEGORIES = frozenset({"comparison", "version"})
+ASSESSMENT_LABELS = frozenset({"supported", "potential_gap", "insufficient_evidence"})
 MODES: tuple[RetrievalMode, ...] = ("vector", "hybrid")
 ADVERSARIAL_FIXTURES = {"INJECTION-001": "INJECTION-001.txt"}
 _SAFE_DB_NAME = re.compile(r"[A-Za-z0-9_]+_(?:eval|test)")
@@ -155,6 +162,95 @@ def _scope(case: EvalCase, corpus: Corpus) -> list[uuid.UUID]:
     return corpus.sample_ids
 
 
+def load_comparison_labels(path: Path, cases: list[EvalCase]) -> dict[str, str | None]:
+    """Expected assessment per comparison/version case; every such case must be listed."""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))["cases"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise EvaluationSetupError(f"Cannot read comparison labels: {path.name}") from exc
+    expected_ids = {c.id for c in cases if c.category in COMPARISON_CATEGORIES}
+    if not isinstance(raw, dict) or set(raw) != expected_ids:
+        raise EvaluationSetupError("Comparison labels must list exactly the comparison cases.")
+    labels: dict[str, str | None] = {}
+    for case_id, entry in raw.items():
+        assessment = entry.get("expected_assessment") if isinstance(entry, dict) else "invalid"
+        if assessment is not None and assessment not in ASSESSMENT_LABELS:
+            raise EvaluationSetupError(f"Invalid expected_assessment for {case_id}.")
+        labels[case_id] = assessment
+    return labels
+
+
+def _cited(result: ChatResult, corpus: Corpus, session_factory, case_id: str) -> list:
+    cited = []
+    with session_factory() as session:
+        for citation in result.citations:
+            chunk = session.get(Chunk, citation.chunk_id)
+            fixture = corpus.fixture_by_runtime.get(citation.document_id)
+            if chunk is None or fixture is None:
+                raise EvaluationSetupError(f"Citation outside the evaluation corpus: {case_id}")
+            cited.append(EvidenceCandidate(fixture, chunk.page, chunk.text))
+    return cited
+
+
+def evaluate_comparison(
+    case: EvalCase,
+    corpus: Corpus,
+    session_factory: sessionmaker,
+    chat: ChatService,
+    expected_assessment: str | None,
+) -> ComparisonCaseResult:
+    """Run one comparison case through the agent (mode=compare) and score its evidence."""
+    started = time.perf_counter()
+    try:
+        result = chat.ask(case.question, document_ids=_scope(case, corpus), mode="compare")
+    except (ChatError, EmbeddingError) as exc:
+        return ComparisonCaseResult(
+            case_id=case.id,
+            category=case.category,
+            expected_status=case.expected_status,
+            status="error",
+            intent="compare",
+            evidence_recall=None,
+            gold_document_coverage=None,
+            citation_precision=None,
+            assessments=[],
+            expected_assessment=expected_assessment,
+            agent_steps=0,
+            latency_ms=(time.perf_counter() - started) * 1000,
+            error=type(exc).__name__,
+        )
+    latency_ms = (time.perf_counter() - started) * 1000
+    gathered = [_candidate(c, corpus) for c in result.retrieved]
+    cited = _cited(result, corpus, session_factory, case.id)
+    return ComparisonCaseResult(
+        case_id=case.id,
+        category=case.category,
+        expected_status=case.expected_status,
+        status=result.status,
+        intent=result.intent,
+        evidence_recall=recall_at_k(gathered, case.gold_evidence, len(gathered)),
+        gold_document_coverage=gold_document_coverage(
+            [c.document_id for c in cited], case.gold_evidence
+        ),
+        citation_precision=citation_gold_precision(cited, case.gold_evidence),
+        assessments=[f.assessment for f in result.findings],
+        expected_assessment=expected_assessment,
+        agent_steps=result.agent_steps,
+        latency_ms=latency_ms,
+    )
+
+
+def routing_report(cases: list[EvalCase], corpus: Corpus) -> dict[str, Any]:
+    """The production auto-routing rule against each case's category."""
+    misrouted = [
+        case.id
+        for case in cases
+        if route_intent(case.question, "auto", len(_scope(case, corpus)))
+        != ("compare" if case.category in COMPARISON_CATEGORIES else "qa")
+    ]
+    return {"accuracy": 1 - len(misrouted) / len(cases), "misrouted": misrouted}
+
+
 def evaluate_case(
     case: EvalCase,
     mode: str,
@@ -172,15 +268,7 @@ def evaluate_case(
     latency_ms = (time.perf_counter() - started) * 1000
     retrieved = [_candidate(c, corpus) for c in result.retrieved]
 
-    cited = []
-    with session_factory() as session:
-        for citation in result.citations:
-            chunk = session.get(Chunk, citation.chunk_id)
-            fixture = corpus.fixture_by_runtime.get(citation.document_id)
-            if chunk is None or fixture is None:
-                raise EvaluationSetupError(f"Citation outside the evaluation corpus: {case.id}")
-            cited.append(EvidenceCandidate(fixture, chunk.page, chunk.text))
-
+    cited = _cited(result, corpus, session_factory, case.id)
     return CaseResult(
         case_id=case.id,
         category=case.category,
@@ -249,10 +337,25 @@ def run_evaluation(
         for mode in order:
             results[mode].append(evaluate_case(case, mode, corpus, session_factory, chats[mode]))
 
+    labels = load_comparison_labels(COMPARISON_LABELS, cases)
+    comparisons = [
+        evaluate_comparison(case, corpus, session_factory, chats["hybrid"], labels[case.id])
+        for case in cases
+        if case.category in COMPARISON_CATEGORIES
+    ]
+
     with session_factory() as session:
         chunk_count = session.query(Chunk).join(Document).count()
     engine.dispose()
-    return build_report(settings, corpus_dir, cases, results, chunk_count)
+    return build_report(
+        settings,
+        corpus_dir,
+        cases,
+        results,
+        chunk_count,
+        comparisons=comparisons,
+        routing=routing_report(cases, corpus),
+    )
 
 
 def _git_commit() -> str | None:
@@ -286,6 +389,8 @@ def build_report(
     cases: list[EvalCase],
     results: dict[str, list[CaseResult]],
     chunk_count: int,
+    comparisons: list[ComparisonCaseResult] | None = None,
+    routing: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     dataset_bytes = (corpus_dir / GOLDEN_DATASET).read_bytes()
     live = settings.model_provider == "openai"
@@ -306,6 +411,9 @@ def build_report(
             "candidate_pool": settings.retrieval_candidate_pool,
             "rrf_k": settings.rrf_k,
             "context_max_tokens": settings.context_max_tokens,
+            "agent_max_steps": settings.agent_max_steps,
+            "agent_max_searches": settings.agent_max_searches,
+            "agent_results_per_search": settings.agent_results_per_search,
         },
         "unavailable": {
             "tokens_and_cost": "Provider adapters do not record usage yet.",
@@ -318,6 +426,16 @@ def build_report(
             for rows in results.values()
             for row in rows
         ],
+        "routing": routing,
+        "comparison": None
+        if comparisons is None
+        else {
+            "mode": "compare",
+            "retrieval_mode": "hybrid",
+            "labels": COMPARISON_LABELS.name,
+            "summary": summarize_comparison(comparisons),
+            "cases": [asdict(row) for row in comparisons],
+        },
     }
 
 
@@ -365,7 +483,44 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"| {_fmt(row['reciprocal_rank'])} | {_fmt(row['fact_recall'])} "
             f"| {_fmt(row['citation_precision'])} |"
         )
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines + _comparison_markdown(report)) + "\n"
+
+
+def _comparison_markdown(report: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    if routing := report.get("routing"):
+        misrouted = ", ".join(routing["misrouted"]) or "none"
+        lines += [
+            "",
+            "## Routing",
+            "",
+            f"- Auto-routing accuracy {_fmt(routing['accuracy'])}; misrouted: {misrouted}",
+        ]
+    comparison = report.get("comparison")
+    if not comparison:
+        return lines
+    lines += [
+        "",
+        f"## Comparison agent (mode=compare, {comparison['retrieval_mode']} retrieval)",
+        "",
+        f"Expected assessments: `evals/{comparison['labels']}`.",
+        "",
+        "| metric | value |",
+        "|---|---|",
+        *(f"| {k} | {_fmt(v)} |" for k, v in comparison["summary"].items()),
+        "",
+        "| case | expected | status | steps | evidence recall | gold docs cited | cites "
+        "| assessments | expected assessment |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for row in comparison["cases"]:
+        lines.append(
+            f"| {row['case_id']} | {row['expected_status']} | {row['status']} "
+            f"| {row['agent_steps']} | {_fmt(row['evidence_recall'])} "
+            f"| {_fmt(row['gold_document_coverage'])} | {_fmt(row['citation_precision'])} "
+            f"| {', '.join(row['assessments']) or 'none'} | {row['expected_assessment'] or 'n/a'} |"
+        )
+    return lines
 
 
 def main(argv: list[str] | None = None) -> int:

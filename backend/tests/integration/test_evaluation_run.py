@@ -34,6 +34,23 @@ def test_offline_run_compares_modes_on_identical_cases(database_url: str, tmp_pa
     assert "| recall@8 |" in render_markdown(report)
 
 
+def test_offline_run_reports_comparison_agent_and_routing(database_url: str, tmp_path) -> None:
+    report = run_evaluation(offline(database_url, tmp_path), CORPUS_DIR)
+
+    assert report["routing"] == {"accuracy": 1.0, "misrouted": []}
+    comparison = report["comparison"]
+    assert [c["case_id"] for c in comparison["cases"]] == ["E06", "E07", "E08", "E09", "E10"]
+    summary = comparison["summary"]
+    assert summary["errors"] == 0 and summary["routed_to_compare"] == 5
+    assert summary["labelled_cases"] == 4
+    assert all(1 <= c["agent_steps"] <= 6 for c in comparison["cases"])
+    # The offline stand-in never judges alignment, so it cannot match a labelled assessment.
+    assert summary["assessment_accuracy"] == 0.0
+    markdown = render_markdown(report)
+    assert "## Comparison agent (mode=compare, hybrid retrieval)" in markdown
+    assert "Auto-routing accuracy 1.000" in markdown
+
+
 def test_metrics_are_reproducible_across_fresh_ingestions(database_url: str, tmp_path) -> None:
     def metrics() -> dict:
         report = run_evaluation(offline(database_url, tmp_path), CORPUS_DIR)
