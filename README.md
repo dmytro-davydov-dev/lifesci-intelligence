@@ -26,10 +26,14 @@ docker compose up --build --wait
 curl http://127.0.0.1:8000/health/ready   # {"status":"ok","database":"ok"}
 ```
 
-Web UI: http://127.0.0.1:3000 · API: http://127.0.0.1:8000 (docs at `/docs`) · Postgres: 127.0.0.1:5432. All ports bind to loopback only. The API applies Alembic migrations on startup. Reset local data with `docker compose down -v` (deletes the database volume).
+Web UI: http://127.0.0.1:3000 · API: http://127.0.0.1:8000 (docs at `/docs`) · Postgres: 127.0.0.1:5432. All ports bind to loopback only. The API applies Alembic migrations on startup.
+
+**Reset:** `docker compose down -v && docker compose up --wait && docker compose exec api python -m app.seed`. The `-v` deletes the database and document-storage volumes, so all uploads and conversations are lost.
+
+*Verified 2026-11-24 from a fresh clone:* a separate Compose project started healthy in about 20 s, the seed ingested 7 of 7 documents, the four Playwright smoke tests passed, and after `down -v` the library was empty and reseeding restored it.
 
 ### Test corpus
-`lifesci-test-data/` is the version-controlled, fully synthetic corpus (fictional Northstar Biologics SOPs and a fictional reference; see its README). It is used for development, integration tests and evaluations:
+`lifesci-test-data/` is the version-controlled, fully synthetic corpus (fictional Northstar Biologics SOPs and a fictional reference; see its README). QMS-REF-001 is a controlled benchmark, not ICH or FDA guidance. A unit test checks that every seedable file is listed in `manifest.json` and marked `synthetic`. It is used for development, integration tests and evaluations:
 
 | Path | Use |
 |---|---|
@@ -55,7 +59,7 @@ cd frontend && npx playwright install chromium && npm run test:e2e
 ```
 Live-model smoke (opt-in, not run here): set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` in `.env`, reset and reseed (embeddings from different providers must not be mixed), then run `npm run test:e2e`.
 
-LangSmith is optional and off by default (not yet wired).
+LangSmith tracing is optional and off by default (`TRACE_LANGSMITH`, metadata only; ADR 0007).
 
 ## Architecture
 Next.js + shadcn/ui -> FastAPI -> LangGraph -> retrieval/ingestion/model services -> PostgreSQL + pgvector and local file storage. Hybrid FTS/vector retrieval with RRF after baseline. Optional LangSmith tracing and experiment analysis. See [plan](mvp-implementation-plan.md), [roadmap](development-roadmap.md), [product design](docs/product-design.md).
