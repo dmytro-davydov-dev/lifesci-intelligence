@@ -4,11 +4,12 @@ import { LoaderCircle, SendHorizontal } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { AnswerText } from "@/components/answer-text";
+import { FindingsList } from "@/components/findings-list";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { AnswerStatus, Citation } from "@/lib/api";
+import type { AnswerStatus, Citation, Finding } from "@/lib/api";
 
 export interface ChatTurn {
   id: string;
@@ -16,12 +17,14 @@ export interface ChatTurn {
   content: string;
   status?: AnswerStatus;
   citations?: Citation[];
+  findings?: Finding[];
 }
 
 const EXAMPLE_PROMPTS = [
   "Within how many hours must a deviation be reported?",
   "Who is responsible for approving CAPA actions?",
   "What does the procedure say about risk assessment?",
+  "Compare deviation reporting deadlines in the SOP and the reference.",
 ];
 
 const STATUS_LABEL: Record<Exclude<AnswerStatus, "answered">, string> = {
@@ -136,6 +139,14 @@ export function ChatPanel({
                 activeChunkId={activeChunkId}
                 onSelect={onSelectCitation}
               />
+              {turn.findings && turn.findings.length > 0 && (
+                <FindingsList
+                  findings={turn.findings}
+                  citations={turn.citations ?? []}
+                  activeChunkId={activeChunkId}
+                  onSelect={onSelectCitation}
+                />
+              )}
               {turn.citations && turn.citations.length > 0 && (
                 <ul className="flex flex-wrap gap-1" aria-label="Sources">
                   {turn.citations.map((citation) => (

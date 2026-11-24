@@ -25,7 +25,28 @@ def step(action, query=None, document=None, source=None) -> str:
     return json.dumps({"action": action, "query": query, "document": document, "source": source})
 
 
-def answer(text="48 hours [S1] versus 24 hours [S2].", ids=("S1", "S2")) -> str:
+def finding(assessment="potential_gap", ids=("S1", "S2"), topic="Reporting deadline") -> dict:
+    cited = " ".join(f"[{label}]" for label in ids)
+    return {
+        "topic": topic,
+        "assessment": assessment,
+        "explanation": f"The SOP allows 48 hours; the reference requires 24 hours {cited}.",
+        "citation_ids": list(ids),
+    }
+
+
+def answer(text="48 hours [S1] versus 24 hours [S2].", ids=("S1", "S2"), findings=None) -> str:
+    return json.dumps(
+        {
+            "status": "answered",
+            "answer": text,
+            "citation_ids": list(ids),
+            "findings": [finding(ids=ids)] if findings is None else findings,
+        }
+    )
+
+
+def qa_answer(text: str, ids=("S1",)) -> str:
     return json.dumps({"status": "answered", "answer": text, "citation_ids": list(ids)})
 
 
@@ -70,6 +91,14 @@ def test_auto_routes_comparison_through_model_selected_tools(make_client) -> Non
     assert body["status"] == "answered"
     assert [c["document_id"] for c in body["citations"]] == [ids["sop"], ids["ref"]]
     assert body["citations"][0]["page"] == 1
+    assert body["findings"] == [
+        {
+            "topic": "Reporting deadline",
+            "assessment": "potential_gap",
+            "explanation": "The SOP allows 48 hours; the reference requires 24 hours [S1] [S2].",
+            "citation_labels": ["S1", "S2"],
+        }
+    ]
     # Four planning calls with the agent prompt, then one grounded answer call.
     assert [m[0].content == AGENT_SYSTEM_PROMPT for m in chat.calls] == [True] * 4 + [False]
     final_planning_prompt = chat.calls[3][-1].content
@@ -95,7 +124,11 @@ def test_document_search_is_restricted_to_the_chosen_document(make_client) -> No
             step("list_documents"),
             step("search", "reporting hours discovery", "D1"),
             step("finish"),
-            answer("Reported within 24 hours [S1].", ids=("S1",)),
+            answer(
+                "Reported within 24 hours [S1].",
+                ids=("S1",),
+                findings=[finding("insufficient_evidence", ("S1",))],
+            ),
         ]
     )
     client = make_client(chat_provider=chat)
@@ -114,7 +147,11 @@ def test_explicit_scope_bounds_listed_and_searchable_documents(make_client) -> N
             step("search", "calibration", "D3"),  # outside scope: rejected
             step("search", "calibration twelve months"),  # all in-scope documents
             step("finish"),
-            answer("No calibration rule [S1].", ids=("S1",)),
+            answer(
+                "No calibration rule [S1].",
+                ids=("S1",),
+                findings=[finding("insufficient_evidence", ("S1",))],
+            ),
         ]
     )
     client = make_client(chat_provider=chat)
@@ -131,10 +168,11 @@ def test_explicit_scope_bounds_listed_and_searchable_documents(make_client) -> N
 
 
 def test_qa_mode_never_starts_the_agent(make_client) -> None:
-    chat = ScriptedChatProvider([answer("Within 48 hours [S1].", ids=("S1",))])
+    chat = ScriptedChatProvider([qa_answer("Within 48 hours [S1].")])
     client = make_client(chat_provider=chat)
     corpus(client)
-    assert ask(client, mode="qa").json()["status"] == "answered"
+    body = ask(client, mode="qa").json()
+    assert (body["status"], body["findings"]) == ("answered", [])
     assert len(chat.calls) == 1 and chat.calls[0][0].content != AGENT_SYSTEM_PROMPT
 
 
@@ -149,6 +187,30 @@ def test_offline_fake_provider_compares_end_to_end(make_client) -> None:
     assert result.status == "answered"
     assert {str(c.document_id) for c in result.retrieved} == {ids["sop"], ids["ref"]}
     assert result.citations
+    [offline] = result.findings
+    assert offline.assessment == "insufficient_evidence"  # the stand-in never judges
+    assert set(offline.citation_labels) == {c.label for c in result.citations}
+    assert {c.document_id for c in result.citations} == {c.document_id for c in result.retrieved}
+
+
+def test_citations_include_labels_cited_only_in_findings(make_client) -> None:
+    chat = ScriptedChatProvider(
+        [
+            step("list_documents"),
+            step("search", "deviation reporting hours", "D2"),
+            step("search", "deviation reporting hours", "D1"),
+            step("finish"),
+            answer("The SOP deadline is longer [S1].", ids=("S1",), findings=[finding()]),
+        ]
+    )
+    client = make_client(chat_provider=chat, settings_overrides={"agent_results_per_search": 1})
+    ids = corpus(client)
+
+    body = ask(client).json()
+
+    assert [c["label"] for c in body["citations"]] == ["S1", "S2"]
+    assert body["citations"][1]["document_id"] == ids["ref"]
+    assert body["citations"][1]["quote"].startswith("2. Reporting")
 
 
 def test_langsmith_environment_does_not_enable_langchain_auto_tracing(

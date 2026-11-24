@@ -5,6 +5,8 @@ import { expect, type Page, test } from "@playwright/test";
 // Project-relative corpus path: works locally and in CI checkouts.
 const SAMPLE_DIR = path.resolve(__dirname, "../../lifesci-test-data/sample-documents");
 const SOP = path.join(SAMPLE_DIR, "SOP-001-v2.pdf");
+const REFERENCE = path.join(SAMPLE_DIR, "QMS-REF-001.pdf");
+const COMPARISON = "Compare reporting deadlines in current SOP-001 and QMS-REF-001."; // golden E06
 const ANSWERABLE = "How soon must a deviation be recorded under the current SOP-001?"; // golden E01
 const UNANSWERABLE = "What is the approved storage temperature for product NB-42?"; // golden E12
 const SCREENSHOT = process.env.E2E_SCREENSHOT; // optional output path for docs
@@ -69,6 +71,27 @@ test("upload, ask, inspect evidence, abstain and detect duplicates", async ({ pa
 
   await page.setInputFiles("#document-upload", SOP);
   await expect(page.getByText("SOP-001-v2.pdf was already uploaded.")).toBeVisible();
+
+  expect(errors).toEqual([]);
+});
+
+test("compares two selected documents with structured findings", async ({ page }) => {
+  const errors = trackPageErrors(page);
+  await page.goto("/");
+  await uploadSop(page);
+  await page.setInputFiles("#document-upload", REFERENCE);
+  await expect(page.getByText(/QMS-REF-001\.pdf (is ready|was already uploaded)\./)).toBeVisible();
+  await page.getByRole("checkbox", { name: /SOP-001-v2\.pdf/ }).check();
+  await page.getByRole("checkbox", { name: /QMS-REF-001\.pdf/ }).check();
+  await expect(page.getByText("Asking 2 selected documents")).toBeVisible();
+
+  const answer = await ask(page, COMPARISON);
+  const findings = answer.getByRole("region", { name: "Comparison findings" });
+  await expect(findings).toBeVisible();
+  await expect(findings.getByText(/Supported|Potential gap|Insufficient evidence/).first()).toBeVisible();
+  const sources = answer.getByRole("list", { name: "Sources" });
+  await expect(sources.getByRole("button", { name: /SOP-001-v2\.pdf/ })).toBeVisible();
+  await expect(sources.getByRole("button", { name: /QMS-REF-001\.pdf/ })).toBeVisible();
 
   expect(errors).toEqual([]);
 });

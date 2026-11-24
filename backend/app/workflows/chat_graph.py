@@ -11,7 +11,7 @@ LangGraph runtime context, not in graph state.
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Protocol, TypedDict
+from typing import Protocol, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -19,7 +19,7 @@ from langgraph.runtime import Runtime
 
 from app.application.answering import Citation
 from app.domain.agent import ScopedDocument, ToolCall, ToolRecord
-from app.domain.answers import AnswerStatus
+from app.domain.answers import AnswerStatus, Finding
 from app.domain.deadline import Deadline
 from app.domain.intent import Intent
 from app.domain.providers import ChatMessage
@@ -45,7 +45,7 @@ class Outcome:
     answer: str
     citations: list[Citation] = field(default_factory=list)
     retrieved: list[RetrievedChunk] = field(default_factory=list)
-    findings: list[Any] = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
 
 
 class ChatState(TypedDict, total=False):

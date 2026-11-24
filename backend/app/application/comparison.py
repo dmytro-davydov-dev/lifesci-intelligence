@@ -1,5 +1,6 @@
 """Comparison agent: the model selects read-only tools within step, search, context and
-time budgets; evidence it gathers is then answered from with validated citations."""
+time budgets, then returns structured findings over the gathered evidence, validated
+against allowlisted citations."""
 
 import logging
 import uuid
@@ -8,7 +9,12 @@ from collections.abc import Callable
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.application.agent_prompts import AGENT_SYSTEM_PROMPT, build_agent_prompt
-from app.application.answering import AnswerGenerator, RequestTimeoutError, budget
+from app.application.answering import (
+    COMPARISON_CONTRACT,
+    AnswerGenerator,
+    RequestTimeoutError,
+    budget,
+)
 from app.domain.agent import (
     AGENT_STEP_SCHEMA,
     AgentBudget,
@@ -212,10 +218,23 @@ class ComparisonAgent:
         retrieved = [source.chunk for source in sources]
         if not sources:
             return {"outcome": Outcome("insufficient_evidence", INSUFFICIENT_EVIDENCE_MESSAGE)}
-        status, answer, citations = self._generator.generate(
-            context.question, context.history, sources, context.deadline, context.root
+        generated = self._generator.generate(
+            context.question,
+            context.history,
+            sources,
+            context.deadline,
+            context.root,
+            COMPARISON_CONTRACT,
         )
-        return {"outcome": Outcome(status, answer, citations, retrieved)}
+        return {
+            "outcome": Outcome(
+                generated.status,
+                generated.answer,
+                generated.citations,
+                retrieved,
+                generated.findings,
+            )
+        }
 
 
 def _stop(reason: str) -> dict:

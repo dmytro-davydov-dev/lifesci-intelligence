@@ -47,6 +47,7 @@ _STOPWORDS = frozenset(
 _QUESTION = re.compile(r"QUESTION:\n(?P<q>.*?)\n\nSOURCES", re.S)
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 _SOURCE = re.compile(r'<source id="(?P<id>S\d+)"[^>]*>\n(?P<text>.*?)\n</source>', re.S)
+_SOURCE_DOCUMENT = re.compile(r'<source id="(?P<id>S\d+)" document="(?P<document>[^"]*)"')
 _AGENT_QUESTION = re.compile(r"QUESTION:\n(?P<q>.*?)\n\nBUDGET", re.S)
 _AGENT_SEARCHES = re.compile(r"searches used (?P<used>\d+) of (?P<max>\d+)")
 _AGENT_DOCUMENT = re.compile(r'^(?P<label>D\d+) name="(?P<name>[^"]*)"', re.M)
@@ -113,14 +114,16 @@ class ExtractiveChatProvider:
             if score > best_score:
                 best_id, best_text, best_score = match.group("id"), match.group("text"), score
 
+        comparison = schema_name == "comparison_findings"
         if best_id is None or best_score < needed:
-            return json.dumps(
-                {
-                    "status": "insufficient_evidence",
-                    "answer": "The provided sources do not address this question.",
-                    "citation_ids": [],
-                }
-            )
+            abstain = {
+                "status": "insufficient_evidence",
+                "answer": "The provided sources do not address this question.",
+                "citation_ids": [],
+            }
+            return json.dumps({**abstain, "findings": []} if comparison else abstain)
+        if comparison:
+            return json.dumps(self._comparison(prompt, question_terms))
         excerpt = self._best_sentence(best_text, question_terms)
         if len(excerpt) > self.excerpt_chars:
             excerpt = excerpt[: self.excerpt_chars].rstrip() + "..."
@@ -131,6 +134,39 @@ class ExtractiveChatProvider:
                 "citation_ids": [best_id],
             }
         )
+
+    def _comparison(self, prompt: str, question_terms: set[str]) -> dict:
+        """Quote the best-matching passage of each document. It never judges alignment, so
+        the single finding is always insufficient_evidence."""
+        documents = {m.group("id"): m.group("document") for m in _SOURCE_DOCUMENT.finditer(prompt)}
+        best: dict[str, tuple[int, str, str]] = {}
+        for match in _SOURCE.finditer(prompt):
+            label, text = match.group("id"), match.group("text")
+            score = len(question_terms & _content_terms(text))
+            document = documents.get(label, "")
+            if score and score > best.get(document, (0, "", ""))[0]:
+                best[document] = (score, label, text)
+        quotes, labels = [], []
+        for _, label, text in best.values():
+            excerpt = self._best_sentence(text, question_terms)[: self.excerpt_chars]
+            quotes.append(f'"{excerpt}" [{label}]')
+            labels.append(label)
+        cited = " ".join(f"[{label}]" for label in labels)
+        return {
+            "status": "answered",
+            "answer": "Offline stand-in, not a model judgement. Most relevant passages: "
+            + "; ".join(quotes)
+            + ". Compare them manually.",
+            "citation_ids": labels,
+            "findings": [
+                {
+                    "topic": "Passages to compare (offline stand-in)",
+                    "assessment": "insufficient_evidence",
+                    "explanation": f"The offline stand-in cannot judge alignment; review {cited}.",
+                    "citation_ids": labels,
+                }
+            ],
+        }
 
     @staticmethod
     def _agent_step(prompt: str) -> dict:

@@ -22,7 +22,12 @@ from app.application.prompts import history_content
 from app.application.trace_payloads import TracePayloads
 from app.config import Settings
 from app.domain.agent import AgentBudget, ScopedDocument
-from app.domain.answers import INSUFFICIENT_EVIDENCE_MESSAGE, AnswerStatus, strip_markers
+from app.domain.answers import (
+    INSUFFICIENT_EVIDENCE_MESSAGE,
+    AnswerStatus,
+    Finding,
+    strip_markers,
+)
 from app.domain.deadline import Clock, Deadline
 from app.domain.intent import MIN_COMPARE_DOCUMENTS, route_intent
 from app.domain.providers import ChatMessage, ChatProvider, EmbeddingProvider
@@ -75,6 +80,7 @@ class ChatResult:
     # Ranked chunks the answer drew on (for evaluation; not exposed by the API).
     retrieved: list[RetrievedChunk] = field(default_factory=list)
     intent: str = "qa"
+    findings: list[Finding] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -247,6 +253,7 @@ class ChatService:
             outcome.citations,
             outcome.retrieved,
             intent,
+            outcome.findings,
         )
 
     def _run_graph(self, context: ChatContext) -> ChatState:
@@ -294,10 +301,10 @@ class ChatService:
         sources = select_sources(chunks, self._settings.context_max_tokens)
         if not sources:
             return {"outcome": Outcome("insufficient_evidence", INSUFFICIENT_EVIDENCE_MESSAGE)}
-        status, answer, citations = self._generator.generate(
+        generated = self._generator.generate(
             question, context.history, sources, context.deadline, context.root
         )
-        return {"outcome": Outcome(status, answer, citations, chunks)}
+        return {"outcome": Outcome(generated.status, generated.answer, generated.citations, chunks)}
 
     def plan(self, state: ChatState, context: ChatContext) -> dict:
         return self._agent.plan(state, context)

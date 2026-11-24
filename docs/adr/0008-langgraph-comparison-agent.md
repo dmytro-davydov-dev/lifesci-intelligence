@@ -1,6 +1,6 @@
 # ADR 0008: LangGraph orchestration and the bounded comparison agent
 
-Status: accepted (T14, 2026-11-24)
+Status: accepted (T14–T15, 2026-11-24)
 
 ## Decisions
 - **Dependency:** `langgraph==1.2.20`, the newest release at least two weeks old. It adds 10 locked packages: langchain-core, the langgraph checkpoint/prebuilt/sdk packages, langchain-protocol, jsonpatch, jsonpointer, ormsgpack and tenacity. All install from prebuilt wheels. No checkpointer, store or LangGraph server is used.
@@ -16,9 +16,15 @@ Status: accepted (T14, 2026-11-24)
 - **Budgets:** `AGENT_MAX_STEPS=6`, `AGENT_MAX_SEARCHES=3` (the plan's three retrieval rounds), `AGENT_RESULTS_PER_SEARCH=4`. The evidence ledger is capped at `CONTEXT_MAX_TOKENS`. Planning and searches keep 10 s of the 45 s request deadline for the final answer.
   - Running out of steps, nearing the deadline, a planning or search timeout, or two consecutive rejected steps all stop planning, and the answer is built from the evidence gathered so far.
   - With no evidence, the response is `insufficient_evidence` without an answer call. LangGraph's recursion limit is a backstop above the step budget.
-- **Answering:** the gathered sources go through the same grounded-answer generator as Q&A (`app/application/answering.py`). That means the same allowlisted citation labels, database-derived quotes, injection echo checks, one repair attempt, and abstention.
+- **Answering:** the gathered sources go through the same generator as Q&A (`app/application/answering.py`) under the comparison contract below. That means the same allowlisted citation labels, database-derived quotes, injection echo checks, one repair attempt, and abstention.
+- **Structured findings (T15):** comparison synthesis uses a separate strict schema (`comparison_findings`): `status`, `answer`, `citation_ids`, and `findings[]` of `{topic, assessment, explanation, citation_ids}`. `assessment` is one of `supported`, `potential_gap` or `insufficient_evidence`; there is deliberately no "compliant" value.
+  - Validation (`app/domain/findings.py`) runs the Q&A answer rules first. Then every finding needs a topic and an explanation, at most 8 findings are allowed, and finding citations (ids and inline markers) must be allowlisted labels.
+  - A `supported` or `potential_gap` finding must cite at least two different documents, so a one-sided reading is never presented as a comparison. It should fall back to `insufficient_evidence`.
+  - The response's citations are the union of answer and finding labels, with quotes and pages taken from the database. The injection echo and prompt-leak checks also cover finding explanations.
+  - Any violation gets one repair attempt, then the request abstains. The QA and comparison contracts share one generator.
+- **API/UI:** `POST /api/chat` returns `findings` (empty for Q&A). The chat panel shows each finding with an assessment badge, and its `[S#]` markers open the evidence panel. A note states that potential gaps are for human review, not a compliance determination. Findings are not persisted with the conversation; history replays only the answer text.
 - **No accidental telemetry:** with `LANGSMITH_TRACING=true` set, an unguarded graph run was verified to construct LangChain's tracer and POST full runs. `ChatService` therefore runs the graph inside `langsmith.tracing_context(enabled=False)`. Only the redacting app tracer emits spans (`agent_step`, `tool`, `model`), and they carry metadata only. An integration test asserts no LangChain tracer is created.
-- **Offline behaviour:** the fake `ExtractiveChatProvider` follows a fixed policy so tests and keyless demos exercise the real loop. It lists documents, searches the documents whose names share the most tokens with the question, then finishes. This is not model judgement.
+- **Offline behaviour:** the fake `ExtractiveChatProvider` follows a fixed policy so tests and keyless demos exercise the real loop. It lists documents, searches the documents whose names share the most tokens with the question, then finishes. Its single finding is always `insufficient_evidence`, quoting the best passage of each document. This is not model judgement.
 
 ## Known limitations
 - Routing by wording can miss implicit comparisons ("Is SOP-002 sufficient against the reference?"). Users can force `mode=compare`.

@@ -2,7 +2,7 @@
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 AnswerStatus = Literal["answered", "insufficient_evidence", "clarification"]
@@ -42,10 +42,24 @@ def strip_markers(text: str) -> str:
     return re.sub(r"[ \t]{2,}", " ", MARKER_GROUP.sub("", text)).strip()
 
 
-def _markers(answer: str) -> list[str]:
+def markers(answer: str) -> list[str]:
     return [
         f"S{number}" for group in MARKER_GROUP.findall(answer) for number in _LABEL.findall(group)
     ]
+
+
+Assessment = Literal["supported", "potential_gap", "insufficient_evidence"]
+ASSESSMENTS: tuple[str, ...] = ("supported", "potential_gap", "insufficient_evidence")
+
+
+@dataclass(frozen=True)
+class Finding:
+    """One comparison finding; labels are validated against the request's sources."""
+
+    topic: str
+    assessment: Assessment
+    explanation: str
+    citation_labels: list[str]
 
 
 @dataclass(frozen=True)
@@ -53,6 +67,7 @@ class ValidatedAnswer:
     status: AnswerStatus
     answer: str
     citation_labels: list[str]
+    findings: list[Finding] = field(default_factory=list)
 
 
 def validate_answer(raw: str, allowed_labels: set[str], max_chars: int = 6000) -> ValidatedAnswer:
@@ -84,13 +99,13 @@ def validate_answer(raw: str, allowed_labels: set[str], max_chars: int = 6000) -
         # Non-answers carry no citations, so dangling markers are removed.
         return ValidatedAnswer(status=status, answer=strip_markers(answer), citation_labels=[])
 
-    markers = _markers(answer)
-    unknown = sorted({*citation_ids, *markers} - allowed_labels)
+    cited = markers(answer)
+    unknown = sorted({*citation_ids, *cited} - allowed_labels)
     if unknown:
         shown = [label for label in unknown if _SAFE_LABEL.match(label)][:10]
         detail = ", ".join(shown) if shown else "malformed ids"
         raise AnswerValidationError("unknown_citation", f"Unknown citation ids: {detail}.")
-    labels = list(dict.fromkeys([*citation_ids, *markers]))
+    labels = list(dict.fromkeys([*citation_ids, *cited]))
     if not labels:
         raise AnswerValidationError("uncited", "An answered status requires at least one citation.")
     return ValidatedAnswer(status="answered", answer=answer.strip(), citation_labels=labels)

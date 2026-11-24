@@ -75,6 +75,7 @@ export function Workspace() {
           content: response.answer,
           status: response.status,
           citations: response.citations,
+          findings: response.findings ?? [],
         },
       ]);
       if (response.citations[0]) setActiveCitation(response.citations[0]);

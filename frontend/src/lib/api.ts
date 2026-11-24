@@ -29,11 +29,23 @@ export interface Citation {
   quote: string;
 }
 
+export type Assessment = "supported" | "potential_gap" | "insufficient_evidence";
+
+/** Comparison finding; `citation_labels` refer to entries of the response's `citations`. */
+export interface Finding {
+  topic: string;
+  assessment: Assessment;
+  explanation: string;
+  citation_labels: string[];
+}
+
 export interface ChatResponse {
   conversation_id: string;
   answer: string;
   status: AnswerStatus;
   citations: Citation[];
+  /** Comparison answers only; empty or absent for grounded Q&A. */
+  findings?: Finding[];
 }
 
 export interface ChunkPassage {

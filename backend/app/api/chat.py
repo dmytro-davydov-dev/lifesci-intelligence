@@ -45,11 +45,20 @@ class CitationOut(BaseModel):
     quote: str
 
 
+class FindingOut(BaseModel):
+    topic: str
+    assessment: Literal["supported", "potential_gap", "insufficient_evidence"]
+    explanation: str
+    citation_labels: list[str]
+
+
 class ChatResponse(BaseModel):
     conversation_id: uuid.UUID
     answer: str
     status: Literal["answered", "insufficient_evidence", "clarification"]
     citations: list[CitationOut]
+    # Present for comparison answers; empty for grounded Q&A.
+    findings: list[FindingOut] = []
 
 
 def get_chat_service(request: Request) -> ChatService:
@@ -75,4 +84,5 @@ def chat(body: ChatRequest, service: Annotated[ChatService, Depends(get_chat_ser
         answer=result.answer,
         status=result.status,
         citations=[CitationOut(**c.__dict__) for c in result.citations],
+        findings=[FindingOut(**f.__dict__) for f in result.findings],
     )
