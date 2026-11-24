@@ -2,7 +2,11 @@
 
 Evidence-grounded document intelligence for pharmaceutical quality and regulatory documentation. Newpage FDE take-home, Option 1.
 
-**Status: Phase 1 in progress.** Implemented: Compose stack, schema, health endpoints, fake model providers, validated PDF/text upload with duplicate detection and original-file viewing (`/api/documents`), page-aware chunking and embeddings (fake offline or OpenAI `text-embedding-3-small`) with atomic ready/failed status, grounded chat (`POST /api/chat`) with vector retrieval, document scoping, validated citations derived from the database, one repair attempt and abstention. Web workspace at http://127.0.0.1:3000: upload/list documents, scoped chat, clickable citations and evidence panel. Not yet: browser smoke test, hybrid retrieval, evals, comparison.
+**Status: Phase 1 in progress.** Implemented: Compose stack, schema, health endpoints, fake model providers, validated PDF/text upload with duplicate detection and original-file viewing (`/api/documents`), page-aware chunking and embeddings (fake offline or OpenAI `text-embedding-3-small`) with atomic ready/failed status, grounded chat (`POST /api/chat`) with vector retrieval, document scoping, validated citations derived from the database, one repair attempt and abstention. Web workspace at http://127.0.0.1:3000: upload/list documents, scoped chat, clickable citations and evidence panel. Playwright browser smoke test (upload → answer → evidence → abstain). Not yet: hybrid retrieval, evals, comparison; the live-model smoke run has not been executed (no API key in this environment).
+
+![Workspace](docs/screenshots/phase1-workspace.png)
+
+*Actual app, offline mode (`MODEL_PROVIDER=fake`), seeded corpus, captured by the Playwright smoke test. The offline extractive stand-in is lexical: here it cites SOP-001-v2 page 2, while the gold evidence for this question ("48 hours") is on page 1. Retrieval and answer quality are measured by the evaluation harness (Phase 2).*
 
 ## Intended experience
 Upload public or synthetic PDF/text documents, ask questions, inspect exact source passages and compare procedures against reference guidance. Findings are potential gaps for human review, not clinical advice or compliance certification.
@@ -31,22 +35,26 @@ Web UI: http://127.0.0.1:3000 · API: http://127.0.0.1:8000 (docs at `/docs`) ·
 |---|---|
 | `sample-documents/` + `manifest.json` | Knowledge-base content; the only files the seed command ingests |
 | `evals/golden-dataset.json` | Evaluation questions and expected answers; never ingested |
-| `adversarial-documents/` | Prompt-injection fixtures; only ingested by `pytest -m security` tests in the `_test` database |
+| `adversarial-documents/` | Prompt-injection fixtures; never seeded. Ingested only into throwaway `*_test` databases by `pytest -m security` and (from T11) the evaluation harness, e.g. for golden case E15 |
 
 ```bash
-docker compose exec api python -m app.seed      # seed the running stack (corpus mounted read-only at /data/lifesci-test-data)
-cd backend && uv run python -m app.seed          # same, from the host, using the repo-relative corpus and DATABASE_URL
+docker compose exec api python -m app.seed      # seed the running stack
 ```
-Seeding is idempotent (re-runs report `duplicate`) and stores each manifest `version`. Paths are project-relative, so the same commands and tests work in CI checkouts.
+Compose mounts only `sample-documents/` and `manifest.json` (read-only) into the API container. Run the seed inside the container so files land in the shared storage volume and embeddings use the stack's configured provider. Seeding is idempotent: re-runs report `duplicate` and do not update stored metadata (reset with `docker compose down -v`, which deletes all local data). Paths are project-relative, so tests work unchanged in CI checkouts.
 
 ### Checks
 ```bash
 cd backend && uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest
 # integration tests need the Compose DB running; they create/migrate a separate *_test database:
 TEST_DATABASE_URL=postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci_test REQUIRE_INTEGRATION=1 uv run pytest
-uv run pytest -m security    # adversarial fixtures only (needs TEST_DATABASE_URL); -m "not security" excludes them
+TEST_DATABASE_URL=postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci_test REQUIRE_INTEGRATION=1 uv run pytest -m security   # adversarial fixtures only
 cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm run build
+# browser smoke against the running stack (docker compose up --build --wait):
+cd frontend && npx playwright install chromium && npm run test:e2e
+# optional: E2E_BASE_URL (default http://127.0.0.1:3000), E2E_SCREENSHOT=path.png to save a screenshot
 ```
+Live-model smoke (opt-in, not run here): set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` in `.env`, reset and reseed (embeddings from different providers must not be mixed), then run `npm run test:e2e`.
+
 LangSmith is optional and off by default (not yet wired).
 
 ## Architecture

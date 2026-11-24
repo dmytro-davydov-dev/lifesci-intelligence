@@ -57,12 +57,19 @@ def default_corpus_dir() -> Path:
 
 def sample_documents(corpus_dir: Path) -> list[CorpusDocument]:
     """Manifest entries, each required to be a file directly inside sample-documents/."""
+    if (corpus_dir / SAMPLE_DIR).is_symlink():
+        raise CorpusError(f"{SAMPLE_DIR}/ must be a real directory, not a symlink.")
     sample_root = (corpus_dir / SAMPLE_DIR).resolve()
     entries = _read_json(corpus_dir / "manifest.json")
     if not isinstance(entries, list):
         raise CorpusError("manifest.json must be a list of documents.")
     documents = []
     for entry in entries:
+        if not isinstance(entry, dict):
+            raise CorpusError("Each manifest entry must be an object.")
+        version = entry.get("version")
+        if version is not None and not isinstance(version, str):
+            raise CorpusError(f"Manifest version must be a string or null: {version!r}")
         filename = str(entry.get("filename", ""))
         path = (sample_root / filename).resolve()
         if path.parent != sample_root or not filename:
@@ -73,7 +80,7 @@ def sample_documents(corpus_dir: Path) -> list[CorpusDocument]:
             CorpusDocument(
                 document_id=str(entry.get("document_id") or path.stem),
                 path=path,
-                version=entry.get("version"),
+                version=version,
                 status=entry.get("status"),
             )
         )
@@ -115,3 +122,5 @@ def _read_json(path: Path) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise CorpusError(f"Missing corpus file: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise CorpusError(f"Invalid JSON in {path.name}: line {exc.lineno}") from exc

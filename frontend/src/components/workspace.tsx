@@ -118,7 +118,7 @@ export function Workspace() {
         </div>
         <ApiStatus />
       </header>
-      <main className="grid flex-1 gap-4 p-4 lg:min-h-0 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)_minmax(280px,380px)] lg:grid-rows-[minmax(0,1fr)]">
+      <main className="grid flex-1 grid-cols-1 gap-4 p-4 lg:min-h-0 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)_minmax(280px,380px)] lg:grid-rows-[minmax(0,1fr)]">
         <DocumentPanel
           documents={documents}
           loading={documentsLoading}

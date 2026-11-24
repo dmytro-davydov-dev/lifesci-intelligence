@@ -30,7 +30,9 @@ services:
       CORPUS_DIR: /data/lifesci-test-data
     volumes:
       - doc-storage:/data/storage
-      - ./lifesci-test-data:/data/lifesci-test-data:ro
+      # Only knowledge-base content is mounted; evals/ and adversarial-documents/ stay out.
+      - ./lifesci-test-data/sample-documents:/data/lifesci-test-data/sample-documents:ro
+      - ./lifesci-test-data/manifest.json:/data/lifesci-test-data/manifest.json:ro
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:

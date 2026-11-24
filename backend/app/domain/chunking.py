@@ -8,6 +8,7 @@ CHARS_PER_TOKEN = 4
 DEFAULT_CHUNK_TOKENS = 500
 DEFAULT_OVERLAP_TOKENS = 80
 MAX_SECTION_LENGTH = 255
+MAX_HEADER_WORDS = 20  # running page headers are short; longer preambles keep the carried section
 
 _MARKDOWN_HEADING = re.compile(r"^#{1,6}\s+(?P<title>\S.*)$")
 # "4. Title" or "4.2 Title": a period after a 1-2 digit number avoids "21 CFR Part 11" etc.
@@ -48,15 +49,27 @@ def chunk_pages(
     drafts: list[ChunkDraft] = []
     section: str | None = None
     for page in pages:
-        words, sections = _words_with_sections(page.text, section, max_chars)
+        carried = section
+        words, sections, heading_starts = _words_with_sections(page.text, section, max_chars)
         if sections:
             section = sections[-1]
         for start, end in _windows(words, max_chars, overlap_chars):
+            chunk_section = sections[start]
+            if start == 0 and chunk_section == carried:
+                # A running page header (no sentence punctuation) before the first heading
+                # should not inherit the previous page's section.
+                first = next((i for i in heading_starts if i < end), None)
+                if (
+                    first is not None
+                    and first <= MAX_HEADER_WORDS
+                    and not any(w.endswith((".", "!", "?")) for w in words[:first])
+                ):
+                    chunk_section = sections[first]
             drafts.append(
                 ChunkDraft(
                     ordinal=len(drafts),
                     page=page.page,
-                    section=sections[start],
+                    section=chunk_section,
                     text=" ".join(words[start:end]),
                 )
             )
@@ -65,20 +78,22 @@ def chunk_pages(
 
 def _words_with_sections(
     text: str, current: str | None, max_chars: int
-) -> tuple[list[str], list[str | None]]:
-    """Split into words (over-long ones into max_chars pieces) with their active section."""
+) -> tuple[list[str], list[str | None], list[int]]:
+    """Words (over-long ones split), their active section, and word indexes starting headings."""
     words: list[str] = []
     sections: list[str | None] = []
+    heading_starts: list[int] = []
     for line in text.splitlines():
         stripped = line.strip()
         heading = _heading_of(stripped)
         if heading:
             current = heading
+            heading_starts.append(len(words))
         for word in stripped.split():
             for offset in range(0, len(word), max_chars):
                 words.append(word[offset : offset + max_chars])
                 sections.append(current)
-    return words, sections
+    return words, sections, heading_starts
 
 
 def _heading_of(line: str) -> str | None:

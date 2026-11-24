@@ -102,3 +102,23 @@ def test_overlap_must_be_smaller_than_chunk() -> None:
 
 def test_estimate_tokens_rounds_up() -> None:
     assert estimate_tokens("abcde") == 2
+
+
+def test_page_header_before_heading_does_not_inherit_previous_page_section() -> None:
+    header = "ACME / SYNTHETIC FIXTURE\nDeviation management SOP-1 | CURRENT\n"
+    pages = [
+        PageText(1, header + "3. Classification\nQA classifies deviations."),
+        PageText(2, header + "4. Investigation\nThe investigator documents evidence."),
+        PageText(3, "Continued investigation text without a heading."),
+    ]
+    sections = [c.section for c in chunk_pages(pages)]
+    assert sections == ["3. Classification", "4. Investigation", "4. Investigation"]
+
+
+def test_carried_list_before_heading_keeps_previous_section_when_long() -> None:
+    bullets = "\n".join(f"- Record item {n}" for n in range(8))  # 24 words, no sentence ends
+    pages = [
+        PageText(1, "3. Records\nKeep these records:"),
+        PageText(2, f"{bullets}\n4. Investigation\nThe investigator documents evidence."),
+    ]
+    assert [c.section for c in chunk_pages(pages)] == ["3. Records", "3. Records"]

@@ -68,3 +68,36 @@ def test_default_corpus_dir_is_repo_relative_or_env(monkeypatch: pytest.MonkeyPa
     assert default_corpus_dir() == CORPUS_DIR
     monkeypatch.setenv("CORPUS_DIR", "/data/lifesci-test-data")
     assert default_corpus_dir() == Path("/data/lifesci-test-data")
+
+
+def _corpus_with_manifest(tmp_path: Path, manifest: str) -> Path:
+    (tmp_path / "sample-documents").mkdir()
+    (tmp_path / "sample-documents" / "a.txt").write_text("text")
+    (tmp_path / "manifest.json").write_text(manifest)
+    return tmp_path
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    ["{not json", '["a.txt"]', '[{"filename": "a.txt", "version": 2.0}]', '{"filename": "a.txt"}'],
+)
+def test_malformed_manifest_raises_corpus_error(tmp_path: Path, manifest: str) -> None:
+    with pytest.raises(CorpusError):
+        sample_documents(_corpus_with_manifest(tmp_path, manifest))
+
+
+def test_symlinked_file_pointing_outside_sample_documents_is_rejected(tmp_path: Path) -> None:
+    corpus = _corpus_with_manifest(tmp_path, '[{"filename": "leak.json"}]')
+    (corpus / "evals").mkdir()
+    (corpus / "evals" / "golden-dataset.json").write_text("[]")
+    (corpus / "sample-documents" / "leak.json").symlink_to(corpus / "evals" / "golden-dataset.json")
+    with pytest.raises(CorpusError):
+        sample_documents(corpus)
+
+
+def test_symlinked_sample_directory_is_rejected(tmp_path: Path) -> None:
+    (tmp_path / "evals").mkdir()
+    (tmp_path / "sample-documents").symlink_to(tmp_path / "evals", target_is_directory=True)
+    (tmp_path / "manifest.json").write_text("[]")
+    with pytest.raises(CorpusError, match="symlink"):
+        sample_documents(tmp_path)

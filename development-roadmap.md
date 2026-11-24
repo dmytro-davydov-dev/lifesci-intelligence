@@ -13,7 +13,7 @@ Exit: Compose starts and readiness succeeds. Commit only with human approval.
 - [x] T05 Page-aware chunking, embeddings and atomic persistence; test failure paths.
 - [x] T06 Vector retrieval, scoped context, structured answer, citation validation and abstention.
 - [x] T07 Document library, chat, evidence panel and errors; connect real API.
-- [ ] T08 Run upload-to-answer smoke test with synthetic fixture and opt-in live model.
+- [x] T08 Run upload-to-answer smoke test with synthetic fixture and opt-in live model. (Offline smoke automated with Playwright; live-model run not executed: no API key.)
 Exit: working MVP vertical slice with citations and reproducible startup. Capture screenshot now.
 
 ## Phase 2 — reliability and evaluation (P0/P1)
