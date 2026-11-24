@@ -11,8 +11,8 @@ class EmbeddingError(Exception):
 class EmbeddingProvider(Protocol):
     dimensions: int
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
-        """Return one embedding per input text, in order."""
+    def embed(self, texts: list[str], timeout: float | None = None) -> list[list[float]]:
+        """Return one embedding per input text, in order. `timeout` bounds the whole call."""
         ...
 
 
@@ -26,7 +26,17 @@ class ChatError(Exception):
     """Chat provider failure with a message that is safe to show to users."""
 
 
+class ModelTimeoutError(ChatError, EmbeddingError):
+    """A provider call exceeded its time budget."""
+
+
 class ChatProvider(Protocol):
-    def complete_json(self, messages: list[ChatMessage], schema_name: str, schema: dict) -> str:
-        """Return a JSON string conforming to the given schema."""
+    def complete_json(
+        self,
+        messages: list[ChatMessage],
+        schema_name: str,
+        schema: dict,
+        timeout: float | None = None,
+    ) -> str:
+        """Return a JSON string conforming to the given schema. `timeout` bounds the call."""
         ...

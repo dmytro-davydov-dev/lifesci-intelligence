@@ -15,7 +15,7 @@ Status: accepted (T06, 2026-11-24)
 ## Known limitations
 - Follow-up questions are retrieved using the latest question only (no query rewriting).
 - Citation validation checks that cited ids exist, not that each claim is semantically supported; that is measured in evals.
-- No request-level deadline yet beyond provider timeouts (T09); worst case is one embedding plus two chat calls, each up to 3 attempts x 30 s.
+- Request deadline and injection guard: superseded by ADR 0005 (T09).
 - The returned `quote` is the first 400 characters of the cited chunk, not the exact supporting span; the evidence panel opens the full chunk via `/api/documents/{id}/chunks/{chunk_id}`.
 - `MAX_OUTPUT_TOKENS` (1000) includes reasoning tokens for reasoning models; truncated output returns 503 with a distinct message.
 - Validation failures are logged by reason code only; inline citation markers from previous turns are stripped from history.

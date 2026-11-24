@@ -1,5 +1,6 @@
 """FastAPI application factory."""
 
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -14,6 +15,7 @@ from app.application.chat import ChatService, ChatSettings
 from app.application.documents import DocumentService
 from app.application.ingestion import IngestionService
 from app.config import Settings, get_settings
+from app.domain.deadline import Clock
 from app.domain.documents import MAX_UPLOAD_BYTES
 from app.domain.providers import ChatProvider, EmbeddingProvider
 from app.infrastructure.db import create_db_engine, database_is_ready
@@ -30,6 +32,7 @@ def create_app(
     readiness_check: ReadinessCheck | None = None,
     embedder: EmbeddingProvider | None = None,
     chat_provider: ChatProvider | None = None,
+    clock: Clock | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     embedder = embedder or build_embedding_provider(settings)
@@ -62,7 +65,10 @@ def create_app(
             top_k=settings.retrieval_top_k,
             context_max_tokens=settings.context_max_tokens,
             history_max_messages=settings.history_max_messages,
+            history_message_max_chars=settings.history_message_max_chars,
+            request_deadline_seconds=settings.request_deadline_seconds,
         ),
+        clock=clock or time.monotonic,
     )
 
     install_error_handling(app, max_request_bytes=MAX_UPLOAD_BYTES + _MULTIPART_OVERHEAD_BYTES)

@@ -26,6 +26,8 @@ services:
       MODEL_PROVIDER: ${MODEL_PROVIDER:-fake}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-}
+      MAX_OUTPUT_TOKENS: ${MAX_OUTPUT_TOKENS:-1000}
+      REQUEST_DEADLINE_SECONDS: ${REQUEST_DEADLINE_SECONDS:-45}
       STORAGE_DIR: /data/storage
       CORPUS_DIR: /data/lifesci-test-data
     volumes:

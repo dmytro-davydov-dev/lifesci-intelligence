@@ -5,8 +5,8 @@ import pytest
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 
-from app.domain.providers import ChatError
-from app.infrastructure.fake_providers import ScriptedChatProvider
+from app.domain.providers import ChatError, ModelTimeoutError
+from app.infrastructure.fake_providers import FakeEmbeddingProvider, ScriptedChatProvider
 from app.infrastructure.models import Chunk, Message
 from tests.support.pdfs import make_pdf
 
@@ -179,7 +179,7 @@ def test_compare_mode_is_not_available_yet(make_client) -> None:
 
 def test_provider_failure_returns_503_and_persists_nothing(make_client, engine: Engine) -> None:
     class BrokenChat:
-        def complete_json(self, *args):
+        def complete_json(self, *args, **kwargs):
             raise ChatError("Model request failed (APITimeoutError). Try again shortly.")
 
     client = make_client(chat_provider=BrokenChat())
@@ -252,7 +252,7 @@ def test_provider_failure_on_repair_returns_503_and_persists_nothing(
         def __init__(self) -> None:
             self.calls = 0
 
-        def complete_json(self, *args):
+        def complete_json(self, *args, **kwargs):
             self.calls += 1
             if self.calls == 1:
                 return reply(ids=["S99"])
@@ -264,3 +264,121 @@ def test_provider_failure_on_repair_returns_503_and_persists_nothing(
     assert ask(client, "When are deviations reported?").status_code == 503
     with Session(engine) as session:
         assert session.query(Message).count() == 0
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+class SlowScriptedChat(ScriptedChatProvider):
+    """Advances the fake clock by `seconds` per model call."""
+
+    def __init__(self, replies: list[str], clock: FakeClock, seconds: float) -> None:
+        super().__init__(replies)
+        self.clock, self.seconds = clock, seconds
+
+    def complete_json(self, *args, **kwargs) -> str:
+        self.clock.now += self.seconds
+        return super().complete_json(*args, **kwargs)
+
+
+def test_model_calls_receive_remaining_request_budget(make_client) -> None:
+    chat = ScriptedChatProvider([reply()])
+    client = make_client(chat_provider=chat, clock=FakeClock())
+    upload(client, SOP)
+
+    assert ask(client, "When are deviations reported?").status_code == 200
+    assert chat.timeouts == [45.0]
+
+
+def test_slow_embedding_exhausts_budget_and_returns_504(make_client, engine: Engine) -> None:
+    clock = FakeClock()
+    embedder = FakeEmbeddingProvider()
+
+    class SlowEmbedder:
+        dimensions = embedder.dimensions
+
+        def embed(self, texts, timeout=None):
+            clock.now += 44.5
+            return embedder.embed(texts)
+
+    chat = ScriptedChatProvider([reply()])
+    upload(make_client(), SOP)
+    client = make_client(embedder=SlowEmbedder(), chat_provider=chat, clock=clock)
+
+    response = ask(client, "When are deviations reported?")
+
+    assert response.status_code == 504
+    assert response.json()["error"]["code"] == "request_timeout"
+    assert chat.calls == []
+    with Session(engine) as session:
+        assert session.query(Message).count() == 0
+
+
+def test_provider_timeout_returns_504(make_client) -> None:
+    class TimingOutChat:
+        def complete_json(self, *args, **kwargs):
+            raise ModelTimeoutError("Model request timed out (APITimeoutError).")
+
+    client = make_client(chat_provider=TimingOutChat())
+    upload(client, SOP)
+    response = ask(client, "When are deviations reported?")
+    assert response.status_code == 504
+    assert response.json()["error"]["code"] == "request_timeout"
+
+
+def test_repair_receives_remaining_budget(make_client) -> None:
+    clock = FakeClock()
+    chat = SlowScriptedChat([reply(ids=["S99"]), reply()], clock, seconds=10)
+    client = make_client(chat_provider=chat, clock=clock)
+    upload(client, SOP)
+
+    assert ask(client, "When are deviations reported?").json()["status"] == "answered"
+    assert chat.timeouts == [45.0, 35.0]
+
+
+def test_repair_timeout_abstains_instead_of_failing(make_client) -> None:
+    class TimesOutOnRepair:
+        calls = 0
+
+        def complete_json(self, *args, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return reply(ids=["S99"])
+            raise ModelTimeoutError("Model request timed out (APITimeoutError).")
+
+    client = make_client(chat_provider=TimesOutOnRepair())
+    upload(client, SOP)
+    response = ask(client, "When are deviations reported?")
+    assert response.status_code == 200
+    assert response.json()["status"] == "insufficient_evidence"
+
+
+def test_repair_is_skipped_when_budget_is_exhausted(make_client) -> None:
+    clock = FakeClock()
+    chat = SlowScriptedChat([reply(ids=["S99"]), reply()], clock, seconds=44.5)
+    client = make_client(chat_provider=chat, clock=clock)
+    upload(client, SOP)
+
+    body = ask(client, "When are deviations reported?").json()
+
+    assert body["status"] == "insufficient_evidence"
+    assert len(chat.calls) == 1
+
+
+def test_history_messages_are_truncated_before_replay(make_client) -> None:
+    long_answer = "Within 24 hours " + "detail " * 600 + "[S1]."
+    chat = ScriptedChatProvider([reply(answer=long_answer), reply()])
+    client = make_client(chat_provider=chat)
+    upload(client, SOP)
+
+    first = ask(client, "When are deviations reported?").json()
+    ask(client, "Which form?", conversation_id=first["conversation_id"])
+
+    replayed = chat.calls[1][2].content
+    assert replayed.endswith(" [truncated]")
+    assert len(replayed) <= 2000 + len(" [truncated]")

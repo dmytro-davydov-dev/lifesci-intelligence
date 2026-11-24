@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 EMBEDDING_DIMENSIONS = 1536
@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     max_output_tokens: int = 1000
     retrieval_top_k: int = 8
     context_max_tokens: int = 6000
-    history_max_messages: int = 6
+    history_max_messages: int = Field(default=6, ge=0)
+    history_message_max_chars: int = Field(default=2000, ge=100)
+    request_deadline_seconds: float = Field(default=45.0, ge=5)
     openai_timeout_seconds: float = 30.0
     openai_max_retries: int = 2
     embedding_batch_size: int = 64

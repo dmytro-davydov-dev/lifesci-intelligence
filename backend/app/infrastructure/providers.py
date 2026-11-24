@@ -25,7 +25,11 @@ def _openai_client(settings: Settings) -> openai.OpenAI:
 def build_embedding_provider(settings: Settings) -> EmbeddingProvider:
     if settings.model_provider == "fake":
         return FakeEmbeddingProvider()
-    return OpenAIEmbeddingProvider(_openai_client(settings), settings.openai_embedding_model)
+    return OpenAIEmbeddingProvider(
+        _openai_client(settings),
+        settings.openai_embedding_model,
+        max_timeout=settings.openai_timeout_seconds,
+    )
 
 
 def build_chat_provider(settings: Settings) -> ChatProvider:
@@ -34,5 +38,8 @@ def build_chat_provider(settings: Settings) -> ChatProvider:
     if not settings.openai_chat_model:
         raise ProviderConfigurationError("MODEL_PROVIDER=openai requires OPENAI_CHAT_MODEL.")
     return OpenAIChatProvider(
-        _openai_client(settings), settings.openai_chat_model, settings.max_output_tokens
+        _openai_client(settings),
+        settings.openai_chat_model,
+        settings.max_output_tokens,
+        max_timeout=settings.openai_timeout_seconds,
     )

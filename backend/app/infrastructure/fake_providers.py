@@ -45,6 +45,7 @@ _STOPWORDS = frozenset(
     }
 )
 _QUESTION = re.compile(r"QUESTION:\n(?P<q>.*?)\n\nSOURCES", re.S)
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 _SOURCE = re.compile(r'<source id="(?P<id>S\d+)"[^>]*>\n(?P<text>.*?)\n</source>', re.S)
 
 
@@ -61,7 +62,7 @@ class FakeEmbeddingProvider:
     def __init__(self, dimensions: int = EMBEDDING_DIMENSIONS) -> None:
         self.dimensions = dimensions
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
+    def embed(self, texts: list[str], timeout: float | None = None) -> list[list[float]]:
         return [self._embed_one(text) for text in texts]
 
     def _embed_one(self, text: str) -> list[float]:
@@ -77,7 +78,8 @@ class FakeEmbeddingProvider:
 
 
 class ExtractiveChatProvider:
-    """Offline stand-in for a chat model: quotes the source sharing most terms with the question.
+    """Offline stand-in for a chat model: picks the source sharing most terms with the question
+    and quotes its best-matching sentence.
 
     Abstains when no source shares at least `min_overlap` content terms. Deterministic.
     """
@@ -86,7 +88,13 @@ class ExtractiveChatProvider:
         self.min_overlap = min_overlap
         self.excerpt_chars = excerpt_chars
 
-    def complete_json(self, messages: list[ChatMessage], schema_name: str, schema: dict) -> str:
+    def complete_json(
+        self,
+        messages: list[ChatMessage],
+        schema_name: str,
+        schema: dict,
+        timeout: float | None = None,
+    ) -> str:
         prompt = next((m.content for m in reversed(messages) if m.role == "user"), "")
         question_match = _QUESTION.search(prompt)
         question_terms = _content_terms(question_match.group("q")) if question_match else set()
@@ -106,9 +114,9 @@ class ExtractiveChatProvider:
                     "citation_ids": [],
                 }
             )
-        excerpt = best_text[: self.excerpt_chars].rstrip()
-        if len(best_text) > self.excerpt_chars:
-            excerpt += "..."
+        excerpt = self._best_sentence(best_text, question_terms)
+        if len(excerpt) > self.excerpt_chars:
+            excerpt = excerpt[: self.excerpt_chars].rstrip() + "..."
         return json.dumps(
             {
                 "status": "answered",
@@ -117,6 +125,11 @@ class ExtractiveChatProvider:
             }
         )
 
+    @staticmethod
+    def _best_sentence(text: str, question_terms: set[str]) -> str:
+        candidates = [s.strip() for s in _SENTENCE_SPLIT.split(text) if s.strip()]
+        return max(candidates, key=lambda s: len(question_terms & _content_terms(s)), default="")
+
 
 class ScriptedChatProvider:
     """Returns queued replies in order and records every call (for tests)."""
@@ -124,7 +137,15 @@ class ScriptedChatProvider:
     def __init__(self, replies: list[str]) -> None:
         self.replies = list(replies)
         self.calls: list[list[ChatMessage]] = []
+        self.timeouts: list[float | None] = []
 
-    def complete_json(self, messages: list[ChatMessage], schema_name: str, schema: dict) -> str:
+    def complete_json(
+        self,
+        messages: list[ChatMessage],
+        schema_name: str,
+        schema: dict,
+        timeout: float | None = None,
+    ) -> str:
         self.calls.append(list(messages))
+        self.timeouts.append(timeout)
         return self.replies.pop(0)

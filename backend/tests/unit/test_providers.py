@@ -7,7 +7,7 @@ import pytest
 from pydantic import SecretStr
 
 from app.config import Settings
-from app.domain.providers import ChatError, ChatMessage, EmbeddingError
+from app.domain.providers import ChatError, ChatMessage, EmbeddingError, ModelTimeoutError
 from app.infrastructure.fake_providers import ExtractiveChatProvider, FakeEmbeddingProvider
 from app.infrastructure.openai_provider import OpenAIChatProvider, OpenAIEmbeddingProvider
 from app.infrastructure.providers import (
@@ -158,3 +158,59 @@ def test_openai_chat_truncated_output_raises_distinct_error() -> None:
     )
     with pytest.raises(ChatError, match="truncated"):
         OpenAIChatProvider(chat_client(completions), "m").complete_json([], "a", {})
+
+
+class BoundedClient(SimpleNamespace):
+    """Records with_options() so tests can check per-call bounds."""
+
+    def with_options(self, **options):
+        self.options = options
+        return self
+
+
+def test_openai_adapters_apply_deadline_timeout_without_sdk_retries() -> None:
+    completions = StubCompletions(message=SimpleNamespace(content="{}", refusal=None))
+    data = [SimpleNamespace(index=0, embedding=[0.1])]
+    client = BoundedClient(
+        chat=SimpleNamespace(completions=completions),
+        embeddings=StubEmbeddings(response=SimpleNamespace(data=data)),
+    )
+
+    OpenAIChatProvider(client, "m").complete_json([], "a", {}, timeout=12.5)
+    assert client.options == {"timeout": 12.5, "max_retries": 0}
+
+    client.options = None
+    OpenAIEmbeddingProvider(client, "m", dimensions=1).embed(["q"], timeout=3.0)
+    assert client.options == {"timeout": 3.0, "max_retries": 0}
+
+
+def test_openai_adapters_use_client_defaults_without_timeout() -> None:
+    completions = StubCompletions(message=SimpleNamespace(content="{}", refusal=None))
+    client = BoundedClient(chat=SimpleNamespace(completions=completions), options=None)
+    OpenAIChatProvider(client, "m").complete_json([], "a", {})
+    assert client.options is None
+
+
+def test_openai_deadline_timeout_is_capped_by_configured_timeout() -> None:
+    completions = StubCompletions(message=SimpleNamespace(content="{}", refusal=None))
+    client = BoundedClient(chat=SimpleNamespace(completions=completions))
+    OpenAIChatProvider(client, "m", max_timeout=30).complete_json([], "a", {}, timeout=45)
+    assert client.options == {"timeout": 30, "max_retries": 0}
+
+
+def test_openai_timeouts_raise_model_timeout_error() -> None:
+    request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+    completions = StubCompletions(error=openai.APITimeoutError(request=request))
+    with pytest.raises(ModelTimeoutError):
+        OpenAIChatProvider(chat_client(completions), "m").complete_json([], "a", {})
+    embeddings = StubEmbeddings(error=openai.APITimeoutError(request=request))
+    with pytest.raises(ModelTimeoutError):
+        OpenAIEmbeddingProvider(SimpleNamespace(embeddings=embeddings), "m").embed(["x"])
+
+
+@pytest.mark.parametrize(
+    "field", ["request_deadline_seconds", "history_message_max_chars", "history_max_messages"]
+)
+def test_chat_limits_reject_invalid_values(field: str) -> None:
+    with pytest.raises(ValueError):
+        Settings(**{field: -1})

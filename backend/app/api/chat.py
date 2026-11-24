@@ -13,8 +13,9 @@ from app.application.chat import (
     ConversationNotFoundError,
     InvalidDocumentScopeError,
     ModeUnavailableError,
+    RequestTimeoutError,
 )
-from app.domain.providers import ChatError, EmbeddingError
+from app.domain.providers import ChatError, EmbeddingError, ModelTimeoutError
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -68,6 +69,8 @@ def chat(body: ChatRequest, service: Annotated[ChatService, Depends(get_chat_ser
         raise ApiError(422, "invalid_document_scope", str(exc)) from exc
     except ModeUnavailableError as exc:
         raise ApiError(422, "mode_unavailable", str(exc)) from exc
+    except (RequestTimeoutError, ModelTimeoutError) as exc:
+        raise ApiError(504, "request_timeout", str(exc)) from exc
     except (ChatError, EmbeddingError) as exc:
         raise ApiError(503, "model_unavailable", str(exc)) from exc
     return ChatResponse(

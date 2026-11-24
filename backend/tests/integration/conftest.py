@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, make_url, text
 
 from app.config import Settings
+from app.domain.deadline import Clock
 from app.domain.providers import ChatProvider, EmbeddingProvider
 from app.main import create_app
 
@@ -80,10 +81,14 @@ def make_client(database_url: str, clean_db: None, storage_dir: Path) -> Iterato
     def factory(
         embedder: EmbeddingProvider | None = None,
         chat_provider: ChatProvider | None = None,
+        clock: Clock | None = None,
+        settings_overrides: dict | None = None,
         **client_kwargs,
     ) -> TestClient:
-        settings = Settings(database_url=database_url, storage_dir=storage_dir)
-        app = create_app(settings, embedder=embedder, chat_provider=chat_provider)
+        settings = Settings(
+            database_url=database_url, storage_dir=storage_dir, **(settings_overrides or {})
+        )
+        app = create_app(settings, embedder=embedder, chat_provider=chat_provider, clock=clock)
         test_client = TestClient(app, **client_kwargs)
         clients.append(test_client.__enter__())
         return test_client
