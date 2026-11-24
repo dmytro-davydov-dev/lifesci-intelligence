@@ -12,9 +12,11 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess  # noqa: S404 - fixed git command for report provenance
 import sys
+import tempfile
 import time
 import uuid
 from dataclasses import asdict, dataclass
@@ -24,17 +26,19 @@ from typing import Any
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, make_url, text
+from sqlalchemy import URL, create_engine, make_url, text
 from sqlalchemy.orm import sessionmaker
 
 from app.application.chat import ChatService, ChatSettings, RetrievalMode
 from app.config import Settings
 from app.corpus import (
     GOLDEN_DATASET,
+    CorpusError,
     EvalCase,
     adversarial_document,
     default_corpus_dir,
     load_golden_dataset,
+    sample_documents,
 )
 from app.domain.providers import ChatError, EmbeddingError
 from app.domain.retrieval import RetrievedChunk
@@ -51,25 +55,38 @@ from app.evaluation.metrics import (
 )
 from app.infrastructure.db import create_db_engine
 from app.infrastructure.models import Chunk, Document
-from app.infrastructure.retrieval import hybrid_search, vector_search
 from app.seed import seed_corpus
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_REPORT_DIR = BACKEND_DIR.parent / "evals" / "reports"
 MODES: tuple[RetrievalMode, ...] = ("vector", "hybrid")
 ADVERSARIAL_FIXTURES = {"INJECTION-001": "INJECTION-001.txt"}
+_SAFE_DB_NAME = re.compile(r"[A-Za-z0-9_]+_(?:eval|test)")
+_LOCAL_HOSTS = {None, "", "localhost", "127.0.0.1", "::1", "db"}
 
 
 class EvaluationSetupError(RuntimeError):
     pass
 
 
-def prepare_database(url: str) -> None:
-    """Create (if needed), migrate and empty a dedicated evaluation database."""
+def check_target(url: str, allow_remote: bool = False) -> URL:
+    """Refuse anything but a dedicated, local *_eval / *_test database (it gets emptied)."""
     target = make_url(url)
+    if not _SAFE_DB_NAME.fullmatch(target.database or ""):
+        raise EvaluationSetupError(
+            "Evaluation database name must match [A-Za-z0-9_]+_eval or _test."
+        )
+    if not allow_remote and target.host not in _LOCAL_HOSTS:
+        raise EvaluationSetupError(
+            "Refusing to reset a non-local database; pass --allow-remote to override."
+        )
+    return target
+
+
+def prepare_database(url: str, allow_remote: bool = False) -> None:
+    """Create (if needed), migrate and empty a dedicated evaluation database."""
+    target = check_target(url, allow_remote)
     name = target.database or ""
-    if not name.endswith(("_eval", "_test")):
-        raise EvaluationSetupError("Evaluation database name must end in '_eval' or '_test'.")
     admin = create_engine(target.set(database="postgres"), isolation_level="AUTOCOMMIT")
     try:
         with admin.connect() as connection:
@@ -100,23 +117,30 @@ class Corpus:
 
 
 def ingest(app_state: Any, corpus_dir: Path) -> Corpus:
+    """Upload the corpus and map runtime ids to fixture ids via manifest filenames."""
     outcomes = seed_corpus(app_state.document_service, corpus_dir)
     if bad := [o.filename for o in outcomes if o.status != "ready"]:
         raise EvaluationSetupError("Corpus documents not ready: " + ", ".join(bad))
-    for filename in ADVERSARIAL_FIXTURES.values():
+    fixture_by_filename = {d.path.name: d.document_id for d in sample_documents(corpus_dir)}
+    sample_filenames = set(fixture_by_filename)
+    for fixture_id, filename in ADVERSARIAL_FIXTURES.items():
         path = adversarial_document(corpus_dir, filename)
         result = app_state.document_service.upload(path.name, path.read_bytes())
         if result.document.status != "ready":
             raise EvaluationSetupError(f"Adversarial fixture not ready: {filename}")
+        fixture_by_filename[path.name] = fixture_id
+    if len(set(fixture_by_filename.values())) != len(fixture_by_filename):
+        raise EvaluationSetupError("Duplicate fixture document ids in the corpus.")
+
     documents = app_state.document_service.list_documents()
-    fixture_by_runtime = {d.id: Path(d.name).stem for d in documents}
-    adversarial = set(ADVERSARIAL_FIXTURES)
+    unknown = [d.name for d in documents if d.name not in fixture_by_filename]
+    if unknown:
+        raise EvaluationSetupError("Unexpected documents in evaluation DB: " + ", ".join(unknown))
+    fixture_by_runtime = {d.id: fixture_by_filename[d.name] for d in documents}
     return Corpus(
         fixture_by_runtime=fixture_by_runtime,
         runtime_by_fixture={v: k for k, v in fixture_by_runtime.items()},
-        sample_ids=sorted(
-            (d.id for d in documents if fixture_by_runtime[d.id] not in adversarial), key=str
-        ),
+        sample_ids=sorted((d.id for d in documents if d.name in sample_filenames), key=str),
     )
 
 
@@ -136,39 +160,25 @@ def evaluate_case(
     mode: str,
     corpus: Corpus,
     session_factory: sessionmaker,
-    embedder: Any,
     chat: ChatService,
-    settings: ChatSettings,
 ) -> CaseResult:
+    """Score the retrieval and answer of one chat call (the ranking the answer used)."""
     scope = _scope(case, corpus)
-    vector = embedder.embed([case.question])[0]
-    with session_factory() as session:
-        if mode == "vector":
-            chunks = vector_search(session, vector, scope, settings.top_k)
-        else:
-            chunks = hybrid_search(
-                session,
-                vector,
-                case.question,
-                scope,
-                settings.top_k,
-                candidate_pool=settings.candidate_pool,
-                rrf_k=settings.rrf_k,
-            )
-    retrieved = [_candidate(c, corpus) for c in chunks]
-
     started = time.perf_counter()
     try:
         result = chat.ask(case.question, document_ids=scope, mode="qa")
     except (ChatError, EmbeddingError) as exc:
-        return _failed(case, mode, retrieved, type(exc).__name__, started)
+        return _failed(case, mode, type(exc).__name__, started)
     latency_ms = (time.perf_counter() - started) * 1000
+    retrieved = [_candidate(c, corpus) for c in result.retrieved]
 
+    cited = []
     with session_factory() as session:
-        cited = []
         for citation in result.citations:
             chunk = session.get(Chunk, citation.chunk_id)
-            fixture = corpus.fixture_by_runtime[citation.document_id]
+            fixture = corpus.fixture_by_runtime.get(citation.document_id)
+            if chunk is None or fixture is None:
+                raise EvaluationSetupError(f"Citation outside the evaluation corpus: {case.id}")
             cited.append(EvidenceCandidate(fixture, chunk.page, chunk.text))
 
     return CaseResult(
@@ -187,20 +197,19 @@ def evaluate_case(
             else None
         ),
         latency_ms=latency_ms,
+        citations=len(cited),
     )
 
 
-def _failed(
-    case: EvalCase, mode: str, retrieved: list[EvidenceCandidate], error: str, started: float
-) -> CaseResult:
+def _failed(case: EvalCase, mode: str, error: str, started: float) -> CaseResult:
     return CaseResult(
         case_id=case.id,
         category=case.category,
         mode=mode,
         expected_status=case.expected_status,
         status="error",
-        recall={k: recall_at_k(retrieved, case.gold_evidence, k) for k in RECALL_KS},
-        reciprocal_rank=reciprocal_rank(retrieved, case.gold_evidence),
+        recall={k: None for k in RECALL_KS},
+        reciprocal_rank=None,
         fact_recall=None,
         citation_precision=None,
         forbidden_leak=None,
@@ -209,11 +218,13 @@ def _failed(
     )
 
 
-def run_evaluation(settings: Settings, corpus_dir: Path) -> dict[str, Any]:
+def run_evaluation(
+    settings: Settings, corpus_dir: Path, allow_remote: bool = False
+) -> dict[str, Any]:
     from app.infrastructure.providers import build_chat_provider, build_embedding_provider
     from app.main import create_app
 
-    prepare_database(settings.database_url)
+    prepare_database(settings.database_url, allow_remote)
     embedder = build_embedding_provider(settings)
     chat_provider = build_chat_provider(settings)
     app = create_app(settings, embedder=embedder, chat_provider=chat_provider)
@@ -222,23 +233,30 @@ def run_evaluation(settings: Settings, corpus_dir: Path) -> dict[str, Any]:
     session_factory = sessionmaker(engine, expire_on_commit=False)
     cases = load_golden_dataset(corpus_dir)
 
-    results: dict[str, list[CaseResult]] = {}
-    for mode in MODES:
-        chat_settings = ChatSettings(
-            top_k=settings.retrieval_top_k,
-            retrieval_mode=mode,
-            candidate_pool=settings.retrieval_candidate_pool,
-            rrf_k=settings.rrf_k,
-            context_max_tokens=settings.context_max_tokens,
-            history_max_messages=settings.history_max_messages,
-            history_message_max_chars=settings.history_message_max_chars,
-            request_deadline_seconds=settings.request_deadline_seconds,
+    chats = {
+        mode: ChatService(
+            session_factory,
+            embedder,
+            chat_provider,
+            ChatSettings(
+                top_k=settings.retrieval_top_k,
+                retrieval_mode=mode,
+                candidate_pool=settings.retrieval_candidate_pool,
+                rrf_k=settings.rrf_k,
+                context_max_tokens=settings.context_max_tokens,
+                history_max_messages=settings.history_max_messages,
+                history_message_max_chars=settings.history_message_max_chars,
+                request_deadline_seconds=settings.request_deadline_seconds,
+            ),
         )
-        chat = ChatService(session_factory, embedder, chat_provider, chat_settings)
-        results[mode] = [
-            evaluate_case(c, mode, corpus, session_factory, embedder, chat, chat_settings)
-            for c in cases
-        ]
+        for mode in MODES
+    }
+    results: dict[str, list[CaseResult]] = {mode: [] for mode in MODES}
+    for index, case in enumerate(cases):
+        # Alternate which mode runs first so warm-up effects do not favour one mode.
+        order = MODES if index % 2 == 0 else tuple(reversed(MODES))
+        for mode in order:
+            results[mode].append(evaluate_case(case, mode, corpus, session_factory, chats[mode]))
 
     with session_factory() as session:
         chunk_count = session.query(Chunk).join(Document).count()
@@ -363,21 +381,26 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--corpus", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_REPORT_DIR)
+    parser.add_argument("--allow-remote", action="store_true", help="Allow a non-local DB.")
     args = parser.parse_args(argv)
 
     url = os.environ.get("EVAL_DATABASE_URL")
     if not url:
         print("error: set EVAL_DATABASE_URL (database name ending in _eval)", file=sys.stderr)
         return 2
-    settings = Settings(database_url=url)
-    try:
-        report = run_evaluation(settings, args.corpus or default_corpus_dir())
-    except EvaluationSetupError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
+    with tempfile.TemporaryDirectory(prefix="lifesci-eval-") as storage:
+        settings = Settings(database_url=url, storage_dir=Path(storage))
+        try:
+            report = run_evaluation(
+                settings, args.corpus or default_corpus_dir(), args.allow_remote
+            )
+        except (EvaluationSetupError, CorpusError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    stem = f"{report['generated_at'][:10]}-{settings.model_provider}"
+    stamp = report["generated_at"][:16].replace(":", "")
+    stem = f"{stamp}-{settings.model_provider}"
     (args.output_dir / f"{stem}.json").write_text(json.dumps(report, indent=2) + "\n")
     (args.output_dir / f"{stem}.md").write_text(render_markdown(report))
     print(render_markdown(report).split("## Cases")[0])

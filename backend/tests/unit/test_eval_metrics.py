@@ -51,20 +51,10 @@ def test_percentile_nearest_rank() -> None:
     assert percentile([], 50) is None
 
 
-def result(case_id, expected, status, rr=None, leak=None, error=None) -> CaseResult:
+def result(case_id, expected, status, rr=None, leak=None, error=None, cites=0) -> CaseResult:
+    recall = {1: rr, 3: rr, 8: rr}
     return CaseResult(
-        case_id,
-        "c",
-        "hybrid",
-        expected,
-        status,
-        {1: rr, 3: rr, 8: rr},
-        rr,
-        None,
-        None,
-        leak,
-        5.0,
-        error,
+        case_id, "c", "hybrid", expected, status, recall, rr, None, None, leak, 5.0, error, cites
     )
 
 
@@ -74,7 +64,7 @@ def test_summary_separates_answerable_and_non_answer_cases() -> None:
             result("A", "answered", "answered", rr=1.0),
             result("B", "answered", "insufficient_evidence", rr=0.0),
             result("C", "insufficient_evidence", "insufficient_evidence"),
-            result("D", "clarification", "answered", leak=False),
+            result("D", "clarification", "answered", leak=False, cites=2),
         ]
     )
     assert summary["mrr"] == 0.5
@@ -83,3 +73,9 @@ def test_summary_separates_answerable_and_non_answer_cases() -> None:
     assert summary["correct_non_answer_rate"] == 0.5
     assert summary["injection_leaks"] == 0
     assert summary["errors"] == 0
+    assert summary["cited_non_answer_cases"] == 1
+
+
+def test_clarification_on_answerable_case_counts_as_abstention() -> None:
+    summary = summarize([result("A", "answered", "clarification", rr=1.0)])
+    assert summary["false_abstention_rate"] == 1.0

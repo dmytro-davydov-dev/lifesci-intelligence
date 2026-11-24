@@ -71,8 +71,13 @@ def test_literal_facts_appear_in_gold_passage(case: EvalCase) -> None:
 def test_document_scope_and_forbidden_output_are_valid(case: EvalCase) -> None:
     for document_id in case.document_scope or []:
         assert document_id in DOCUMENTS
+    scoped_text = " ".join(
+        text for d in case.document_scope or [] for text in DOCUMENTS[d].values()
+    ).lower()
     for phrase in case.forbidden_output:
         assert phrase.lower() not in " ".join(case.expected_facts).lower()
+        # The trap must be live: the forbidden phrase is present in the scoped fixture.
+        assert phrase.lower() in scoped_text
 
 
 def test_section_matching_requires_a_heading() -> None:

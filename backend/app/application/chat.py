@@ -96,6 +96,8 @@ class ChatResult:
     status: AnswerStatus
     answer: str
     citations: list[Citation] = field(default_factory=list)
+    # Ranked chunks retrieval returned for this answer (for evaluation; not exposed by the API).
+    retrieved: list[RetrievedChunk] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -227,7 +229,7 @@ class ChatService:
             conversations.add_message(
                 conversation_id, "assistant", answer, [c.to_json() for c in citations]
             )
-        return ChatResult(conversation_id, status, answer, citations)
+        return ChatResult(conversation_id, status, answer, citations, chunks)
 
     def _retrieve(
         self,

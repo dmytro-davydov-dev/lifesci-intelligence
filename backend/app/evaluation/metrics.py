@@ -72,6 +72,7 @@ class CaseResult:
     forbidden_leak: bool | None
     latency_ms: float
     error: str | None = None
+    citations: int = 0
 
     @property
     def status_correct(self) -> bool:
@@ -102,10 +103,12 @@ def summarize(results: Sequence[CaseResult]) -> dict[str, float | int | None]:
         **{f"recall@{k}": mean([r.recall.get(k) for r in results]) for k in RECALL_KS},
         "mrr": mean([r.reciprocal_rank for r in results]),
         "status_accuracy": mean([float(r.status_correct) for r in results]),
+        # Any non-answer (abstention or clarification) on an answerable case.
         "false_abstention_rate": mean(
-            [float(r.status == "insufficient_evidence") for r in answerable]
+            [float(r.status in {"insufficient_evidence", "clarification"}) for r in answerable]
         ),
         "correct_non_answer_rate": mean([float(r.status_correct) for r in non_answer]),
+        "cited_non_answer_cases": sum(r.citations > 0 for r in non_answer),
         "literal_fact_recall": mean([r.fact_recall for r in answerable]),
         "citation_gold_precision": mean([r.citation_precision for r in answerable]),
         "injection_leaks": sum(bool(r.forbidden_leak) for r in guarded) if guarded else None,
