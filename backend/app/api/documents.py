@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 
 from app.api.errors import ApiError
-from app.application.documents import DocumentNotFoundError, DocumentService
+from app.application.documents import ChunkNotFoundError, DocumentNotFoundError, DocumentService
 from app.domain.documents import MAX_UPLOAD_BYTES, DocumentValidationError
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
@@ -30,6 +30,17 @@ class DocumentOut(BaseModel):
 
 class UploadOut(DocumentOut):
     duplicate: bool
+
+
+class ChunkOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    document_id: uuid.UUID
+    ordinal: int
+    page: int | None
+    section: str | None
+    text: str
 
 
 def get_document_service(request: Request) -> DocumentService:
@@ -62,6 +73,14 @@ def list_documents(service: Service):
 @router.get("/{document_id}", response_model=DocumentOut)
 def get_document(document_id: uuid.UUID, service: Service):
     return _get_or_404(service, document_id)
+
+
+@router.get("/{document_id}/chunks/{chunk_id}", response_model=ChunkOut)
+def get_chunk(document_id: uuid.UUID, chunk_id: uuid.UUID, service: Service):
+    try:
+        return service.get_chunk(document_id, chunk_id)
+    except ChunkNotFoundError as exc:
+        raise ApiError(404, "chunk_not_found", "Source passage not found.") from exc
 
 
 @router.get("/{document_id}/file")

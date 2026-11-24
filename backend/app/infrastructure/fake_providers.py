@@ -1,6 +1,7 @@
-"""Deterministic offline providers for tests and keyless local runs."""
+"""Deterministic offline providers for tests and keyless local runs. Not models."""
 
 import hashlib
+import json
 import math
 import re
 
@@ -8,6 +9,47 @@ from app.config import EMBEDDING_DIMENSIONS
 from app.domain.providers import ChatMessage
 
 _TOKEN = re.compile(r"[a-z0-9]+")
+_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "be",
+        "by",
+        "can",
+        "do",
+        "does",
+        "for",
+        "from",
+        "how",
+        "in",
+        "is",
+        "it",
+        "must",
+        "of",
+        "on",
+        "or",
+        "the",
+        "to",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "with",
+        "within",
+        "should",
+        "shall",
+    }
+)
+_QUESTION = re.compile(r"QUESTION:\n(?P<q>.*?)\n\nSOURCES", re.S)
+_SOURCE = re.compile(r'<source id="(?P<id>S\d+)"[^>]*>\n(?P<text>.*?)\n</source>', re.S)
+
+
+def _content_terms(text: str) -> set[str]:
+    return {t for t in _TOKEN.findall(text.lower()) if t not in _STOPWORDS and len(t) > 2}
 
 
 class FakeEmbeddingProvider:
@@ -34,13 +76,55 @@ class FakeEmbeddingProvider:
         return [v / norm for v in vector]
 
 
-class FakeChatProvider:
-    """Returns a fixed reply so workflows can be tested without a model."""
+class ExtractiveChatProvider:
+    """Offline stand-in for a chat model: quotes the source sharing most terms with the question.
 
-    def __init__(self, reply: str = "FAKE_RESPONSE") -> None:
-        self.reply = reply
+    Abstains when no source shares at least `min_overlap` content terms. Deterministic.
+    """
+
+    def __init__(self, min_overlap: int = 2, excerpt_chars: int = 300) -> None:
+        self.min_overlap = min_overlap
+        self.excerpt_chars = excerpt_chars
+
+    def complete_json(self, messages: list[ChatMessage], schema_name: str, schema: dict) -> str:
+        prompt = next((m.content for m in reversed(messages) if m.role == "user"), "")
+        question_match = _QUESTION.search(prompt)
+        question_terms = _content_terms(question_match.group("q")) if question_match else set()
+        needed = min(self.min_overlap, max(len(question_terms), 1))
+
+        best_id, best_text, best_score = None, "", 0
+        for match in _SOURCE.finditer(prompt):
+            score = len(question_terms & _content_terms(match.group("text")))
+            if score > best_score:
+                best_id, best_text, best_score = match.group("id"), match.group("text"), score
+
+        if best_id is None or best_score < needed:
+            return json.dumps(
+                {
+                    "status": "insufficient_evidence",
+                    "answer": "The provided sources do not address this question.",
+                    "citation_ids": [],
+                }
+            )
+        excerpt = best_text[: self.excerpt_chars].rstrip()
+        if len(best_text) > self.excerpt_chars:
+            excerpt += "..."
+        return json.dumps(
+            {
+                "status": "answered",
+                "answer": f'The most relevant passage states: "{excerpt}" [{best_id}]',
+                "citation_ids": [best_id],
+            }
+        )
+
+
+class ScriptedChatProvider:
+    """Returns queued replies in order and records every call (for tests)."""
+
+    def __init__(self, replies: list[str]) -> None:
+        self.replies = list(replies)
         self.calls: list[list[ChatMessage]] = []
 
-    def complete(self, messages: list[ChatMessage]) -> str:
+    def complete_json(self, messages: list[ChatMessage], schema_name: str, schema: dict) -> str:
         self.calls.append(list(messages))
-        return self.reply
+        return self.replies.pop(0)

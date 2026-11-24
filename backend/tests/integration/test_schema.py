@@ -69,3 +69,22 @@ def test_chunk_roundtrip_supports_cosine_search_and_fts(engine: Engine) -> None:
         ).all()
         assert fts_hit == [0]
         session.rollback()
+
+
+def test_history_never_starts_with_assistant_message(engine: Engine) -> None:
+    from app.infrastructure.conversation_repository import ConversationRepository
+
+    with Session(engine) as session, session.begin():
+        repository = ConversationRepository(session)
+        conversation = repository.create()
+        for role, content in [
+            ("user", "q1"),
+            ("assistant", "a1"),
+            ("user", "q2"),
+            ("assistant", "a2"),
+        ]:
+            repository.add_message(conversation.id, role, content)
+
+        history = repository.recent_messages(conversation.id, limit=3)
+        assert [m.content for m in history] == ["q2", "a2"]
+        session.rollback()

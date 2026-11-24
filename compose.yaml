@@ -25,6 +25,7 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-lifesci}:${POSTGRES_PASSWORD:-lifesci}@db:5432/${POSTGRES_DB:-lifesci}
       MODEL_PROVIDER: ${MODEL_PROVIDER:-fake}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-}
       STORAGE_DIR: /data/storage
     volumes:
       - doc-storage:/data/storage

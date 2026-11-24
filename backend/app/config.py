@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     model_provider: Literal["fake", "openai"] = "fake"
     openai_api_key: SecretStr | None = None
     openai_embedding_model: str = "text-embedding-3-small"
+    openai_chat_model: str | None = None
+    max_output_tokens: int = 1000
+    retrieval_top_k: int = 8
+    context_max_tokens: int = 6000
+    history_max_messages: int = 6
     openai_timeout_seconds: float = 30.0
     openai_max_retries: int = 2
     embedding_batch_size: int = 64

@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, make_url, text
 
 from app.config import Settings
-from app.domain.providers import EmbeddingProvider
+from app.domain.providers import ChatProvider, EmbeddingProvider
 from app.main import create_app
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -77,9 +77,14 @@ def make_client(database_url: str, clean_db: None, storage_dir: Path) -> Iterato
     """Build API clients sharing one clean test DB and storage dir; optional fake embedder."""
     clients: list[TestClient] = []
 
-    def factory(embedder: EmbeddingProvider | None = None, **client_kwargs) -> TestClient:
+    def factory(
+        embedder: EmbeddingProvider | None = None,
+        chat_provider: ChatProvider | None = None,
+        **client_kwargs,
+    ) -> TestClient:
         settings = Settings(database_url=database_url, storage_dir=storage_dir)
-        test_client = TestClient(create_app(settings, embedder=embedder), **client_kwargs)
+        app = create_app(settings, embedder=embedder, chat_provider=chat_provider)
+        test_client = TestClient(app, **client_kwargs)
         clients.append(test_client.__enter__())
         return test_client
 

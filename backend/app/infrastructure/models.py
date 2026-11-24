@@ -6,10 +6,12 @@ from typing import Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Computed,
     DateTime,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     String,
@@ -80,12 +82,16 @@ class Conversation(Base):
 
 class Message(Base):
     __tablename__ = "messages"
-    __table_args__ = (CheckConstraint("role IN ('user', 'assistant')", name="messages_role_valid"),)
+    __table_args__ = (
+        CheckConstraint("role IN ('user', 'assistant')", name="messages_role_valid"),
+        Index("ix_messages_conversation_seq", "conversation_id", "seq"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("conversations.id", ondelete="CASCADE"), index=True
     )
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True))
     role: Mapped[str] = mapped_column(String(20))
     content: Mapped[str] = mapped_column(Text)
     citations: Mapped[list[dict[str, Any]]] = mapped_column(

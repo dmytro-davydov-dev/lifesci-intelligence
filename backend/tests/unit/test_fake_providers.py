@@ -1,8 +1,13 @@
+import json
 import math
 
 from app.config import EMBEDDING_DIMENSIONS
 from app.domain.providers import ChatMessage
-from app.infrastructure.fake_providers import FakeChatProvider, FakeEmbeddingProvider
+from app.infrastructure.fake_providers import (
+    ExtractiveChatProvider,
+    FakeEmbeddingProvider,
+    ScriptedChatProvider,
+)
 
 
 def test_fake_embeddings_are_deterministic_unit_vectors() -> None:
@@ -37,8 +42,47 @@ def test_fake_embeddings_preserve_input_order_and_count() -> None:
     assert provider.embed(texts) == [provider.embed([t])[0] for t in texts]
 
 
-def test_fake_chat_returns_reply_and_records_messages() -> None:
-    provider = FakeChatProvider(reply="hello")
+def test_scripted_chat_returns_replies_in_order_and_records_calls() -> None:
+    provider = ScriptedChatProvider(["one", "two"])
     messages = [ChatMessage(role="user", content="hi")]
-    assert provider.complete(messages) == "hello"
-    assert provider.calls == [messages]
+    assert provider.complete_json(messages, "s", {}) == "one"
+    assert provider.complete_json(messages, "s", {}) == "two"
+    assert provider.calls == [messages, messages]
+
+
+def _prompt(question: str, sources: dict[str, str]) -> list[ChatMessage]:
+    blocks = "\n".join(
+        f'<source id="{k}" document="d">\n{v}\n</source>' for k, v in sources.items()
+    )
+    return [ChatMessage("user", f"QUESTION:\n{question}\n\nSOURCES (x):\n{blocks}")]
+
+
+def test_extractive_chat_cites_best_matching_source() -> None:
+    reply = json.loads(
+        ExtractiveChatProvider().complete_json(
+            _prompt(
+                "When must deviations be reported to QA?",
+                {"S1": "Equipment is calibrated yearly.", "S2": "Deviations are reported to QA."},
+            ),
+            "s",
+            {},
+        )
+    )
+    assert reply["status"] == "answered"
+    assert reply["citation_ids"] == ["S2"]
+    assert reply["answer"].endswith("[S2]")
+
+
+def test_extractive_chat_abstains_without_overlap() -> None:
+    reply = json.loads(
+        ExtractiveChatProvider().complete_json(
+            _prompt("What is the capital of France?", {"S1": "Deviations are reported to QA."}),
+            "s",
+            {},
+        )
+    )
+    assert reply == {
+        "status": "insufficient_evidence",
+        "answer": "The provided sources do not address this question.",
+        "citation_ids": [],
+    }

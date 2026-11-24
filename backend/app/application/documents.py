@@ -18,13 +18,17 @@ from app.domain.documents import (
     validate_upload,
 )
 from app.infrastructure.document_repository import DocumentRepository
-from app.infrastructure.models import Document
+from app.infrastructure.models import Chunk, Document
 from app.infrastructure.storage import LocalFileStorage
 
 PdfReader = Callable[[bytes], list[PageText]]
 
 
 class DocumentNotFoundError(Exception):
+    pass
+
+
+class ChunkNotFoundError(Exception):
     pass
 
 
@@ -95,6 +99,13 @@ class DocumentService:
         if document is None:
             raise DocumentNotFoundError(str(document_id))
         return document
+
+    def get_chunk(self, document_id: uuid.UUID, chunk_id: uuid.UUID) -> Chunk:
+        with self._session_factory() as session:
+            chunk = DocumentRepository(session).get_chunk(document_id, chunk_id)
+        if chunk is None:
+            raise ChunkNotFoundError(str(chunk_id))
+        return chunk
 
     def file_path(self, document: Document) -> Path:
         path = self._storage.path_for(document.storage_key)

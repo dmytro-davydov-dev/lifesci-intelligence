@@ -7,17 +7,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import sessionmaker
 
-from app.api import documents, health
+from app.api import chat, documents, health
 from app.api.errors import install_error_handling
 from app.api.health import ReadinessCheck
+from app.application.chat import ChatService, ChatSettings
 from app.application.documents import DocumentService
 from app.application.ingestion import IngestionService
 from app.config import Settings, get_settings
 from app.domain.documents import MAX_UPLOAD_BYTES
-from app.domain.providers import EmbeddingProvider
+from app.domain.providers import ChatProvider, EmbeddingProvider
 from app.infrastructure.db import create_db_engine, database_is_ready
 from app.infrastructure.pdf import read_pdf_pages
-from app.infrastructure.providers import build_embedding_provider
+from app.infrastructure.providers import build_chat_provider, build_embedding_provider
 from app.infrastructure.storage import LocalFileStorage
 
 # Multipart framing overhead allowed on top of the file size limit.
@@ -28,9 +29,11 @@ def create_app(
     settings: Settings | None = None,
     readiness_check: ReadinessCheck | None = None,
     embedder: EmbeddingProvider | None = None,
+    chat_provider: ChatProvider | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     embedder = embedder or build_embedding_provider(settings)
+    chat_provider = chat_provider or build_chat_provider(settings)
     engine = create_db_engine(settings)
     session_factory = sessionmaker(engine, expire_on_commit=False)
 
@@ -51,6 +54,17 @@ def create_app(
         session_factory, LocalFileStorage(settings.storage_dir), read_pdf_pages, ingestion
     )
 
+    app.state.chat_service = ChatService(
+        session_factory,
+        embedder,
+        chat_provider,
+        ChatSettings(
+            top_k=settings.retrieval_top_k,
+            context_max_tokens=settings.context_max_tokens,
+            history_max_messages=settings.history_max_messages,
+        ),
+    )
+
     install_error_handling(app, max_request_bytes=MAX_UPLOAD_BYTES + _MULTIPART_OVERHEAD_BYTES)
     app.add_middleware(
         CORSMiddleware,
@@ -61,4 +75,5 @@ def create_app(
     )
     app.include_router(health.router)
     app.include_router(documents.router)
+    app.include_router(chat.router)
     return app

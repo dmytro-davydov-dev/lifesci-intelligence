@@ -22,7 +22,11 @@ class ChatMessage:
     content: str
 
 
+class ChatError(Exception):
+    """Chat provider failure with a message that is safe to show to users."""
+
+
 class ChatProvider(Protocol):
-    def complete(self, messages: list[ChatMessage]) -> str:
-        """Return the model's text completion for the given messages."""
+    def complete_json(self, messages: list[ChatMessage], schema_name: str, schema: dict) -> str:
+        """Return a JSON string conforming to the given schema."""
         ...

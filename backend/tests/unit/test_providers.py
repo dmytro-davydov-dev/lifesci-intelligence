@@ -7,10 +7,14 @@ import pytest
 from pydantic import SecretStr
 
 from app.config import Settings
-from app.domain.providers import EmbeddingError
-from app.infrastructure.fake_providers import FakeEmbeddingProvider
-from app.infrastructure.openai_provider import OpenAIEmbeddingProvider
-from app.infrastructure.providers import ProviderConfigurationError, build_embedding_provider
+from app.domain.providers import ChatError, ChatMessage, EmbeddingError
+from app.infrastructure.fake_providers import ExtractiveChatProvider, FakeEmbeddingProvider
+from app.infrastructure.openai_provider import OpenAIChatProvider, OpenAIEmbeddingProvider
+from app.infrastructure.providers import (
+    ProviderConfigurationError,
+    build_chat_provider,
+    build_embedding_provider,
+)
 
 
 class StubEmbeddings:
@@ -80,3 +84,77 @@ def test_factory_requires_key_for_openai(key: str | None) -> None:
 def test_factory_builds_openai_provider_with_key() -> None:
     settings = Settings(model_provider="openai", openai_api_key=SecretStr("sk-test"))
     assert isinstance(build_embedding_provider(settings), OpenAIEmbeddingProvider)
+
+
+class StubCompletions:
+    def __init__(self, message=None, error: Exception | None = None, finish_reason="stop") -> None:
+        self.message, self.error, self.calls = message, error, []
+        self.finish_reason = finish_reason
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.error:
+            raise self.error
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=self.message, finish_reason=self.finish_reason)]
+        )
+
+
+def chat_client(completions: StubCompletions) -> SimpleNamespace:
+    return SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+
+def test_openai_chat_requests_strict_json_schema_with_output_cap() -> None:
+    completions = StubCompletions(message=SimpleNamespace(content='{"a":1}', refusal=None))
+    provider = OpenAIChatProvider(chat_client(completions), "model-x", max_output_tokens=123)
+
+    result = provider.complete_json([ChatMessage("user", "hi")], "answer", {"type": "object"})
+
+    assert result == '{"a":1}'
+    [call] = completions.calls
+    assert call["model"] == "model-x"
+    assert call["max_completion_tokens"] == 123
+    assert call["messages"] == [{"role": "user", "content": "hi"}]
+    assert call["response_format"]["json_schema"] == {
+        "name": "answer",
+        "schema": {"type": "object"},
+        "strict": True,
+    }
+
+
+def test_openai_chat_refusal_raises_chat_error() -> None:
+    completions = StubCompletions(message=SimpleNamespace(content=None, refusal="no"))
+    with pytest.raises(ChatError, match="declined"):
+        OpenAIChatProvider(chat_client(completions), "m").complete_json([], "a", {})
+
+
+def test_openai_chat_wraps_provider_errors() -> None:
+    request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+    completions = StubCompletions(error=openai.APIConnectionError(request=request))
+    with pytest.raises(ChatError, match="APIConnectionError"):
+        OpenAIChatProvider(chat_client(completions), "m").complete_json([], "a", {})
+
+
+def test_chat_factory_defaults_to_extractive_fake() -> None:
+    assert isinstance(build_chat_provider(Settings()), ExtractiveChatProvider)
+
+
+def test_chat_factory_requires_model_name_for_openai() -> None:
+    settings = Settings(model_provider="openai", openai_api_key=SecretStr("sk-test"))
+    with pytest.raises(ProviderConfigurationError, match="OPENAI_CHAT_MODEL"):
+        build_chat_provider(settings)
+
+
+def test_chat_factory_builds_openai_chat_provider() -> None:
+    settings = Settings(
+        model_provider="openai", openai_api_key=SecretStr("sk-test"), openai_chat_model="m"
+    )
+    assert isinstance(build_chat_provider(settings), OpenAIChatProvider)
+
+
+def test_openai_chat_truncated_output_raises_distinct_error() -> None:
+    completions = StubCompletions(
+        message=SimpleNamespace(content='{"status": "ans', refusal=None), finish_reason="length"
+    )
+    with pytest.raises(ChatError, match="truncated"):
+        OpenAIChatProvider(chat_client(completions), "m").complete_json([], "a", {})

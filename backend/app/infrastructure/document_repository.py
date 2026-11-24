@@ -62,6 +62,11 @@ class DocumentRepository:
         )
         self.session.flush()
 
+    def get_chunk(self, document_id: uuid.UUID, chunk_id: uuid.UUID) -> Chunk | None:
+        return self.session.scalars(
+            select(Chunk).where(Chunk.id == chunk_id, Chunk.document_id == document_id)
+        ).first()
+
     def count_chunks(self, document_id: uuid.UUID) -> int:
         return self.session.scalar(
             select(func.count()).select_from(Chunk).where(Chunk.document_id == document_id)
