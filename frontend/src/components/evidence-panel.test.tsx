@@ -62,8 +62,20 @@ describe("EvidencePanel", () => {
   it("moves focus to the heading when explicitly requested", () => {
     vi.mocked(api.getChunk).mockResolvedValue(passage("c1", "Text"));
     const { rerender } = render(<EvidencePanel citation={citation("c1")} focusRequest={0} />);
-    expect(document.activeElement).not.toBe(screen.getByRole("heading", { name: "Evidence" }));
+    expect(document.activeElement).not.toBe(screen.getByRole("heading", { name: "Source evidence" }));
     rerender(<EvidencePanel citation={citation("c1")} focusRequest={1} />);
-    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Evidence" }));
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Source evidence" }));
+  });
+
+  it("lists the answer's other sources and selects one on demand", async () => {
+    vi.mocked(api.getChunk).mockResolvedValue(passage("c1", "Text"));
+    const second: Citation = { ...citation("c2"), label: "S2", document_name: "ref.pdf" };
+    const onSelect = vi.fn();
+    render(<EvidencePanel citation={citation("c1")} citations={[citation("c1"), second]} onSelect={onSelect} />);
+
+    expect(await screen.findByTestId("evidence-passage")).toHaveTextContent("Text");
+    expect(screen.getAllByTestId("evidence-passage")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "View source passage S2: ref.pdf" }));
+    expect(onSelect).toHaveBeenCalledWith(second);
   });
 });

@@ -2,10 +2,10 @@ import { AnswerText } from "@/components/answer-text";
 import { Badge } from "@/components/ui/badge";
 import type { Assessment, Citation, Finding } from "@/lib/api";
 
-const ASSESSMENT: Record<Assessment, { label: string; variant: "default" | "destructive" | "outline" }> = {
-  supported: { label: "Supported", variant: "default" },
-  potential_gap: { label: "Potential gap", variant: "destructive" },
-  insufficient_evidence: { label: "Insufficient evidence", variant: "outline" },
+const ASSESSMENT: Record<Assessment, { label: string; className: string }> = {
+  supported: { label: "Supported", className: "bg-accent text-accent-foreground" },
+  potential_gap: { label: "Potential gap", className: "border-warning/40 bg-warning/10 text-warning" },
+  insufficient_evidence: { label: "Insufficient evidence", className: "border-border text-muted-foreground" },
 };
 
 interface FindingsListProps {
@@ -18,16 +18,20 @@ interface FindingsListProps {
 /** Structured comparison findings; explanations are plain text with clickable [S1] markers. */
 export function FindingsList({ findings, citations, activeChunkId, onSelect }: FindingsListProps) {
   return (
-    <section aria-label="Comparison findings" className="flex flex-col gap-2">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Findings</h3>
-      <ul className="flex flex-col gap-2">
+    <section aria-label="Comparison findings" className="flex flex-col gap-3">
+      <h3 className="sr-only">Findings</h3>
+      <ol className="flex flex-col gap-3">
         {findings.map((finding, index) => {
           const assessment = ASSESSMENT[finding.assessment];
           return (
-            <li key={index} className="flex flex-col gap-1 rounded-md border p-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={assessment.variant}>{assessment.label}</Badge>
-                <span className="font-medium">{finding.topic}</span>
+            <li key={index} className="flex flex-col gap-1.5 rounded-lg border bg-muted px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-semibold">
+                  {index + 1}. {finding.topic}
+                </span>
+                <Badge variant="outline" className={assessment.className}>
+                  {assessment.label}
+                </Badge>
               </div>
               <AnswerText
                 answer={finding.explanation}
@@ -38,7 +42,7 @@ export function FindingsList({ findings, citations, activeChunkId, onSelect }: F
             </li>
           );
         })}
-      </ul>
+      </ol>
       <p className="text-xs text-muted-foreground">
         Potential gaps are for human review, not a compliance determination.
       </p>

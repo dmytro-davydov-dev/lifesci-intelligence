@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Quote } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -16,12 +16,16 @@ type PassageResult =
 type PassageState = { state: "loading" } | PassageResult;
 
 interface EvidencePanelProps {
+  /** The selected citation; its passage is shown. */
   citation: Citation | null;
+  /** All sources of the answer being inspected; defaults to just the selected citation. */
+  citations?: Citation[];
+  onSelect?: (citation: Citation) => void;
   /** Incremented when the user explicitly picks a citation; moves focus here. */
   focusRequest?: number;
 }
 
-export function EvidencePanel({ citation, focusRequest = 0 }: EvidencePanelProps) {
+export function EvidencePanel({ citation, citations = [], onSelect, focusRequest = 0 }: EvidencePanelProps) {
   const [result, setResult] = useState<PassageResult | null>(null);
   const [attempt, setAttempt] = useState(0);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -57,57 +61,91 @@ export function EvidencePanel({ citation, focusRequest = 0 }: EvidencePanelProps
   const passage: PassageState =
     citation && result?.chunkId === citation.chunk_id ? result : { state: "loading" };
 
+  const sources = citation && !citations.some((c) => c.chunk_id === citation.chunk_id) ? [citation] : citations;
+
   return (
-    <section aria-labelledby="evidence-heading" className="flex min-h-0 flex-col gap-3">
-      <h2 id="evidence-heading" ref={headingRef} tabIndex={-1} className="text-sm font-semibold outline-none">
-        Evidence
+    <section
+      aria-labelledby="evidence-heading"
+      className="flex min-h-0 flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm"
+    >
+      <h2 id="evidence-heading" ref={headingRef} tabIndex={-1} className="text-lg font-semibold outline-none">
+        Source evidence
       </h2>
       {!citation ? (
         <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
           Select a citation such as <span className="font-semibold">S1</span> to inspect the exact source passage.
         </div>
       ) : (
-        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-lg border p-4">
-          <div className="flex items-start gap-2 text-sm">
-            <Quote className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-            <div className="min-w-0">
-              <p className="font-semibold">{citation.label}</p>
-              <p className="text-muted-foreground">{describeLocation(citation)}</p>
-            </div>
-          </div>
-          {passage.state === "loading" && (
-            <div className="flex flex-col gap-2" role="status">
-              <span className="sr-only">Loading source passage</span>
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-11/12" />
-              <Skeleton className="h-4 w-4/5" />
-            </div>
-          )}
-          {passage.state === "error" && (
-            <Alert variant="destructive" role="alert">
-              <AlertDescription className="flex flex-col items-start gap-2">
-                {passage.message}
-                <Button variant="outline" size="xs" onClick={() => setAttempt((n) => n + 1)}>
-                  Retry
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
-          {passage.state === "loaded" && (
-            <blockquote className="whitespace-pre-wrap border-l-2 pl-3 text-sm leading-relaxed" data-testid="evidence-passage">
-              {passage.passage.text}
-            </blockquote>
-          )}
-          <a
-            href={documentFileUrl(citation.document_id, citation.page)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-primary underline-offset-4 hover:underline"
-          >
-            Open original{citation.page ? ` at page ${citation.page}` : ""}
-            <ExternalLink className="size-3.5" aria-hidden />
-          </a>
-        </div>
+        <ul className="-mx-1 flex min-h-0 flex-col gap-3 overflow-y-auto px-1 pb-1" aria-label="Sources for this answer">
+          {sources.map((source) => {
+            const active = source.chunk_id === citation.chunk_id;
+            return (
+              <li
+                key={source.chunk_id}
+                className={`flex flex-col gap-2 rounded-lg border bg-muted px-4 py-3 text-sm ${
+                  active ? "border-primary/50 ring-1 ring-primary/30" : ""
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold">
+                    [{source.label}] {source.document_name}
+                  </p>
+                  <p className="text-muted-foreground">{describeLocation({ ...source, document_name: "" }) || "Text document"}</p>
+                </div>
+                {active ? (
+                  <>
+                    {passage.state === "loading" && (
+                      <div className="flex flex-col gap-2" role="status">
+                        <span className="sr-only">Loading source passage</span>
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-11/12" />
+                        <Skeleton className="h-4 w-4/5" />
+                      </div>
+                    )}
+                    {passage.state === "error" && (
+                      <Alert variant="destructive" role="alert">
+                        <AlertDescription className="flex flex-col items-start gap-2">
+                          {passage.message}
+                          <Button variant="outline" size="xs" onClick={() => setAttempt((n) => n + 1)}>
+                            Retry
+                          </Button>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    {passage.state === "loaded" && (
+                      <blockquote
+                        className="border-l-2 border-primary/60 pl-3 leading-relaxed whitespace-pre-wrap"
+                        data-testid="evidence-passage"
+                      >
+                        {passage.passage.text}
+                      </blockquote>
+                    )}
+                    <a
+                      href={documentFileUrl(source.document_id, source.page)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+                    >
+                      Open original{source.page ? ` at page ${source.page}` : ""}
+                      <ExternalLink className="size-3.5" aria-hidden />
+                    </a>
+                  </>
+                ) : (
+                  onSelect && (
+                    <button
+                      type="button"
+                      onClick={() => onSelect(source)}
+                      className="self-start rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                      aria-label={`View source passage ${source.label}: ${source.document_name}`}
+                    >
+                      View source passage
+                    </button>
+                  )
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
     </section>
   );

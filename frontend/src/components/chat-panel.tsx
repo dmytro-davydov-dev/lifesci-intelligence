@@ -1,6 +1,6 @@
 "use client";
 
-import { LoaderCircle, SendHorizontal } from "lucide-react";
+import { ArrowRight, LoaderCircle } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { AnswerText } from "@/components/answer-text";
@@ -90,11 +90,17 @@ export function ChatPanel({
   }
 
   return (
-    <section aria-labelledby="chat-heading" className="flex min-h-0 flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 id="chat-heading" className="text-sm font-semibold">
-          Assistant
-        </h2>
+    <section
+      aria-labelledby="chat-heading"
+      className="flex min-h-[32rem] flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm lg:min-h-0"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 id="chat-heading" className="text-xl font-semibold">
+            Quality intelligence
+          </h2>
+          <p className="text-sm text-muted-foreground">Ask questions across your document collection</p>
+        </div>
         <Button variant="ghost" size="sm" onClick={onNewConversation} disabled={pending || turns.length === 0}>
           New conversation
         </Button>
@@ -104,16 +110,23 @@ export function ChatPanel({
         {pending ? "Searching documents and drafting an answer." : announcement}
       </p>
       <div
-        className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto rounded-lg border p-4"
+        className="-mx-1 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-1 py-1"
         aria-label="Conversation"
         tabIndex={0}
       >
         {turns.length === 0 && (
-          <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <div className="flex flex-col gap-3 text-sm text-muted-foreground">
             <p>Ask a question about your documents. Answers cite the exact passages they rely on.</p>
             <div className="flex flex-col items-start gap-2">
               {EXAMPLE_PROMPTS.map((prompt) => (
-                <Button key={prompt} variant="outline" size="sm" disabled={!canAsk} onClick={() => submit(prompt)}>
+                <Button
+                  key={prompt}
+                  variant="outline"
+                  size="sm"
+                  className="h-auto max-w-full justify-start py-1.5 text-left whitespace-normal"
+                  disabled={!canAsk}
+                  onClick={() => submit(prompt)}
+                >
                   {prompt}
                 </Button>
               ))}
@@ -124,15 +137,22 @@ export function ChatPanel({
 
         {turns.map((turn) =>
           turn.role === "user" ? (
-            <div key={turn.id} className="self-end rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">
+            <div
+              key={turn.id}
+              className="max-w-[90%] self-end rounded-lg bg-secondary px-4 py-3 text-sm text-secondary-foreground"
+            >
               <span className="sr-only">You asked: </span>
               <p className="whitespace-pre-wrap">{turn.content}</p>
             </div>
           ) : (
-            <article key={turn.id} className="flex flex-col gap-2 text-sm" aria-label="Assistant answer">
-              {turn.status && turn.status !== "answered" && (
-                <Badge variant="outline">{STATUS_LABEL[turn.status]}</Badge>
-              )}
+            <article key={turn.id} className="flex flex-col gap-3 text-sm" aria-label="Assistant answer">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="size-6 shrink-0 rounded-full bg-primary" aria-hidden />
+                <span className="font-semibold">Evidence-based analysis</span>
+                {turn.status && turn.status !== "answered" && (
+                  <Badge variant="outline">{STATUS_LABEL[turn.status]}</Badge>
+                )}
+              </div>
               <AnswerText
                 answer={turn.content}
                 citations={turn.citations ?? []}
@@ -148,18 +168,18 @@ export function ChatPanel({
                 />
               )}
               {turn.citations && turn.citations.length > 0 && (
-                <ul className="flex flex-wrap gap-1" aria-label="Sources">
+                <ul className="flex flex-wrap gap-x-3 gap-y-1" aria-label="Sources">
                   {turn.citations.map((citation) => (
                     <li key={citation.chunk_id}>
-                      <Button
-                        variant="outline"
-                        size="xs"
+                      <button
+                        type="button"
                         aria-pressed={citation.chunk_id === activeChunkId}
                         onClick={() => onSelectCitation(citation)}
+                        className="rounded-sm text-xs text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring aria-pressed:font-semibold aria-pressed:underline"
                       >
-                        {citation.label} · {citation.document_name}
-                        {citation.page ? ` p. ${citation.page}` : ""}
-                      </Button>
+                        [{citation.label}] {citation.document_name}
+                        {citation.page ? `, p. ${citation.page}` : ""}
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -170,7 +190,8 @@ export function ChatPanel({
 
         {pending && (
           <p className="flex items-center gap-2 text-sm text-muted-foreground" aria-hidden>
-            <LoaderCircle className="size-4 animate-spin" aria-hidden /> Searching documents and drafting an answer…
+            <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden /> Searching documents and drafting an
+            answer…
           </p>
         )}
         <div ref={endRef} />
@@ -182,28 +203,33 @@ export function ChatPanel({
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit} className="flex items-end gap-2">
-        <label htmlFor="question" className="sr-only">
-          Question
-        </label>
-        <Textarea
-          id="question"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={canAsk ? "Ask about your documents… (Enter to send, Shift+Enter for a new line)" : "Upload a document first"}
-          maxLength={MAX_QUESTION_CHARS}
-          rows={2}
-          disabled={!canAsk}
-          className="min-h-0 resize-none"
-        />
-        <Button type="submit" size="icon-lg" disabled={pending || !canAsk || !draft.trim()} aria-label="Send question">
-          {pending ? <LoaderCircle className="animate-spin" /> : <SendHorizontal />}
-        </Button>
-      </form>
-      <p className="text-xs text-muted-foreground">
-        Answers are generated from your documents for human review. Not medical advice or a compliance certification.
-      </p>
+      <div className="flex flex-col gap-2">
+        <form
+          onSubmit={handleSubmit}
+          className="flex items-end gap-2 rounded-lg border border-input bg-card p-2 pl-3 transition-shadow focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30"
+        >
+          <label htmlFor="question" className="sr-only">
+            Question
+          </label>
+          <Textarea
+            id="question"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={canAsk ? "Ask a follow-up question… (Shift+Enter for a new line)" : "Upload a document first"}
+            maxLength={MAX_QUESTION_CHARS}
+            rows={1}
+            disabled={!canAsk}
+            className="max-h-40 min-h-9 resize-none border-0 bg-transparent px-0 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
+          />
+          <Button type="submit" size="icon-lg" disabled={pending || !canAsk || !draft.trim()} aria-label="Send question">
+            {pending ? <LoaderCircle className="animate-spin" /> : <ArrowRight />}
+          </Button>
+        </form>
+        <p className="text-xs text-muted-foreground">
+          Answers are generated from your documents for human review. Not medical advice or a compliance certification.
+        </p>
+      </div>
     </section>
   );
 }

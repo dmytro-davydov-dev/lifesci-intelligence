@@ -109,7 +109,7 @@ test("rejects a non-PDF renamed to .pdf with an actionable error", async ({ page
     buffer: Buffer.from("plain text pretending to be a PDF"),
   });
   // Scope to the documents panel: Next.js renders its own role="alert" route announcer.
-  const alert = page.getByRole("region", { name: "Documents" }).getByRole("alert");
+  const alert = page.getByRole("region", { name: "Document collection" }).getByRole("alert");
   await expect(alert).toContainText("File has a .pdf extension but is not a PDF.");
   await expect(alert).toContainText(/\(request [0-9a-f]+\)/);
 });

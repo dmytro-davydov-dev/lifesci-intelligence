@@ -22,7 +22,13 @@ export function ApiStatus() {
   }, []);
 
   return (
-    <p role="status" aria-live="polite" data-status={status} className="text-sm">
+    <p role="status" aria-live="polite" data-status={status} className="flex items-center gap-2 text-sm text-header-foreground/85">
+      <span
+        aria-hidden
+        className={`size-2 rounded-full ${
+          status === "ready" ? "bg-emerald-400" : status === "unavailable" ? "bg-red-400" : "bg-header-foreground/50"
+        }`}
+      />
       {LABELS[status]}
     </p>
   );

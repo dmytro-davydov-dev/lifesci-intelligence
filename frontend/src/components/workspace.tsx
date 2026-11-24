@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiStatus } from "@/components/api-status";
@@ -18,6 +19,7 @@ export function Workspace() {
   const [pending, setPending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
+  const [evidenceCitations, setEvidenceCitations] = useState<Citation[]>([]);
   const [focusRequest, setFocusRequest] = useState(0);
   const latestRefresh = useRef(0);
 
@@ -78,7 +80,10 @@ export function Workspace() {
           findings: response.findings ?? [],
         },
       ]);
-      if (response.citations[0]) setActiveCitation(response.citations[0]);
+      if (response.citations[0]) {
+        setActiveCitation(response.citations[0]);
+        setEvidenceCitations(response.citations);
+      }
       return true;
     } catch (error) {
       // Drop the unanswered turn; the question goes back into the input for retry.
@@ -98,6 +103,9 @@ export function Workspace() {
 
   function selectCitation(citation: Citation) {
     setActiveCitation(citation);
+    // Show the sources of the answer the citation belongs to (latest match wins).
+    const owner = turns.findLast((turn) => turn.citations?.some((c) => c.chunk_id === citation.chunk_id));
+    if (owner?.citations) setEvidenceCitations(owner.citations);
     setFocusRequest((n) => n + 1);
   }
 
@@ -105,42 +113,59 @@ export function Workspace() {
     setTurns([]);
     setConversationId(undefined);
     setActiveCitation(null);
+    setEvidenceCitations([]);
     setChatError(null);
   }
 
   const hasReadyDocuments = documents.some((d) => d.status === "ready");
 
   return (
-    <div className="flex min-h-screen flex-col lg:h-screen">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-        <div>
-          <h1 className="text-base font-semibold">LifeSci Intelligence</h1>
-          <p className="text-xs text-muted-foreground">Evidence-grounded Q&amp;A for pharmaceutical quality documentation</p>
+    <div className="flex min-h-screen flex-col bg-background lg:h-screen">
+      <header className="flex flex-wrap items-center justify-between gap-2 bg-header px-4 py-3 text-header-foreground sm:px-6">
+        <div className="flex items-center gap-3">
+          <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground" aria-hidden>
+            <Plus className="size-5" strokeWidth={3} />
+          </span>
+          <div>
+            <h1 className="text-lg font-semibold leading-tight">LifeSci Intelligence</h1>
+            <p className="hidden text-xs text-header-foreground/70 sm:block">
+              Evidence-grounded Q&amp;A for pharmaceutical quality documentation
+            </p>
+          </div>
         </div>
         <ApiStatus />
       </header>
-      <main className="grid flex-1 grid-cols-1 gap-4 p-4 lg:min-h-0 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)_minmax(280px,380px)] lg:grid-rows-[minmax(0,1fr)]">
-        <DocumentPanel
-          documents={documents}
-          loading={documentsLoading}
-          loadError={documentsError}
-          selectedIds={selectedIds}
-          onToggle={toggleDocument}
-          onUploaded={refreshDocuments}
-          onRefresh={refreshDocuments}
-        />
-        <ChatPanel
-          turns={turns}
-          pending={pending}
-          error={chatError}
-          canAsk={hasReadyDocuments}
-          activeChunkId={activeCitation?.chunk_id ?? null}
-          onAsk={ask}
-          onSelectCitation={selectCitation}
-          onNewConversation={newConversation}
-        />
-        <EvidencePanel citation={activeCitation} focusRequest={focusRequest} />
-      </main>
+      <div className="grid flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[minmax(240px,280px)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
+        <aside className="flex min-h-0 flex-col border-b border-sidebar-border bg-sidebar p-4 text-sidebar-foreground lg:border-r lg:border-b-0">
+          <DocumentPanel
+            documents={documents}
+            loading={documentsLoading}
+            loadError={documentsError}
+            selectedIds={selectedIds}
+            onToggle={toggleDocument}
+            onUploaded={refreshDocuments}
+            onRefresh={refreshDocuments}
+          />
+        </aside>
+        <main className="grid grid-cols-1 gap-4 p-4 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] lg:grid-rows-[minmax(0,1fr)]">
+          <ChatPanel
+            turns={turns}
+            pending={pending}
+            error={chatError}
+            canAsk={hasReadyDocuments}
+            activeChunkId={activeCitation?.chunk_id ?? null}
+            onAsk={ask}
+            onSelectCitation={selectCitation}
+            onNewConversation={newConversation}
+          />
+          <EvidencePanel
+            citation={activeCitation}
+            citations={evidenceCitations}
+            focusRequest={focusRequest}
+            onSelect={selectCitation}
+          />
+        </main>
+      </div>
     </div>
   );
 }

@@ -25,7 +25,7 @@ export function AnswerText({ answer, citations, activeChunkId, onSelect }: Answe
             aria-pressed={active}
             aria-label={`Show evidence ${label}: ${citation.document_name}${citation.page ? `, page ${citation.page}` : ""}`}
             className={`mx-0.5 rounded px-1 align-baseline text-xs font-semibold underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring ${
-              active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+              active ? "bg-primary text-primary-foreground" : "bg-accent text-primary"
             }`}
           >
             {label}

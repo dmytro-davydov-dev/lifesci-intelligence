@@ -25,7 +25,7 @@ export function splitAnswer(answer: string, citations: Citation[]): AnswerSegmen
 }
 
 export function describeLocation(citation: Pick<Citation, "document_name" | "page" | "section">): string {
-  const parts = [citation.document_name];
+  const parts = citation.document_name ? [citation.document_name] : [];
   if (citation.page) parts.push(`p. ${citation.page}`);
   if (citation.section) parts.push(citation.section);
   return parts.join(" · ");
