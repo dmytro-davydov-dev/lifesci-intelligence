@@ -31,7 +31,7 @@ Exit: deterministic tests pass; actual evaluation report exists (live runs marke
 Exit: live comparison demo or clearly documented fallback to Q&A; no fake tool execution.
 
 ## Phase 4 — submission (P0)
-- [ ] T17 CI lint/typecheck/unit/integration/build; browser smoke where feasible.
+- [x] T17 CI lint/typecheck/unit/integration/build; browser smoke where feasible. (.github/workflows/ci.yml; same commands pass locally, workflow not yet run on GitHub: not pushed.)
 - [ ] T18 Verify clean startup, reset procedure and demo fixture provenance; remove secrets and generated clutter.
 - [ ] T19 Write architecture, ADRs, productionization, security and actual AI workflow notes; human revises README.
 - [ ] T20 Capture screenshots and optionally record five-minute demo; final scope/limitations review.
