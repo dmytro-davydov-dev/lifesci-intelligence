@@ -37,7 +37,7 @@ curl http://127.0.0.1:8000/health/ready   # {"status":"ok","database":"ok"}
 
 Web UI: http://127.0.0.1:3000 · API: http://127.0.0.1:8000 (docs at `/docs`) · Postgres: 127.0.0.1:5432. All ports bind to loopback only. The API applies Alembic migrations on startup.
 
-**Live model:** set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` in `.env`, then reset and reseed. Embeddings from different providers must not be mixed in one database.
+**Live model:** set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` in `.env`, or `MODEL_PROVIDER=gemini` and `GEMINI_API_KEY` (optional `GEMINI_MODEL`, default `gemini-flash-lite-latest`; embeddings use `gemini-embedding-001` truncated to 1536 dimensions), then reset and reseed. Embeddings from different providers must not be mixed in one database. The Gemini adapter calls the REST API (`models/{model}:generateContent` with `responseJsonSchema`) and is covered by mocked-HTTP unit tests; a live Gemini run has not been recorded.
 
 **Reset:** `docker compose down -v && docker compose up --wait && docker compose exec api python -m app.seed`. The `-v` deletes the database and document-storage volumes, so all uploads and conversations are lost.
 

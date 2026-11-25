@@ -4,7 +4,7 @@
         uv run python -m app.evaluation.run
 
 The target database is reset (its name must end in `_eval` or `_test`). Providers come
-from the usual settings: MODEL_PROVIDER=fake (default, offline) or openai (live, opt-in).
+from the usual settings: MODEL_PROVIDER=fake (default, offline), openai or gemini (live, opt-in).
 Both modes use the identical corpus, questions, providers and settings except retrieval.
 """
 
@@ -393,7 +393,12 @@ def build_report(
     routing: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     dataset_bytes = (corpus_dir / GOLDEN_DATASET).read_bytes()
-    live = settings.model_provider == "openai"
+    provider = settings.model_provider
+    models = {
+        "fake": ("fake-hashed-bow", "fake-extractive"),
+        "openai": (settings.openai_embedding_model, settings.openai_chat_model),
+        "gemini": (settings.gemini_embedding_model, settings.gemini_model),
+    }[provider]
     return {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "git_commit": _git_commit(),
@@ -405,8 +410,8 @@ def build_report(
         },
         "configuration": {
             "model_provider": settings.model_provider,
-            "embedding_model": settings.openai_embedding_model if live else "fake-hashed-bow",
-            "chat_model": settings.openai_chat_model if live else "fake-extractive",
+            "embedding_model": models[0],
+            "chat_model": models[1],
             "top_k": settings.retrieval_top_k,
             "candidate_pool": settings.retrieval_candidate_pool,
             "rrf_k": settings.rrf_k,
@@ -418,7 +423,11 @@ def build_report(
         "unavailable": {
             "tokens_and_cost": "Provider adapters do not record usage yet.",
             "semantic_support": "No judge model; citation_gold_precision checks location only.",
-            **({} if live else {"live_model": "Offline fake providers; not model quality."}),
+            **(
+                {"live_model": "Offline fake providers; not model quality."}
+                if provider == "fake"
+                else {}
+            ),
         },
         "summary": {mode: summarize(rows) for mode, rows in results.items()},
         "cases": [

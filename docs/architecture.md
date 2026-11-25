@@ -18,7 +18,7 @@ flowchart LR
 ```
 
 - **Runtime:** Docker Compose runs `db`, `api` and `web`, with every port bound to 127.0.0.1. The API applies Alembic migrations on start.
-- **Model providers:** `MODEL_PROVIDER=fake` (the default) uses deterministic offline stand-ins: hashed bag-of-words embeddings and an extractive "model". `MODEL_PROVIDER=openai` uses `text-embedding-3-small` (1536 dimensions) and a configurable chat model.
+- **Model providers:** `MODEL_PROVIDER=fake` (the default) uses deterministic offline stand-ins: hashed bag-of-words embeddings and an extractive "model". `MODEL_PROVIDER=openai` uses `text-embedding-3-small` (1536 dimensions) and a configurable chat model. `MODEL_PROVIDER=gemini` calls the Gemini REST API over httpx: `GEMINI_MODEL` (default `gemini-flash-lite-latest`) via `generateContent` with `responseJsonSchema`, and `gemini-embedding-001` truncated to 1536 dimensions and L2-normalized, so the schema is unchanged. Calls with a request deadline are not retried; calls without one (ingestion) retry 429/5xx/timeouts up to `GEMINI_MAX_RETRIES`.
 - **Layering:** the domain layer has no framework or vendor imports. Providers, the tracer and the clock are injected, so tests swap in fakes.
 
 ## Data model

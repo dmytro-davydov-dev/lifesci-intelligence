@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=None, extra="ignore")
 
     database_url: str = "postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci"
-    model_provider: Literal["fake", "openai"] = "fake"
+    model_provider: Literal["fake", "openai", "gemini"] = "fake"
     openai_api_key: SecretStr | None = None
     openai_embedding_model: str = "text-embedding-3-small"
     openai_chat_model: str | None = None
@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     agent_results_per_search: int = Field(default=4, ge=1, le=20)
     openai_timeout_seconds: float = 30.0
     openai_max_retries: int = 2
+    # Google Gemini (MODEL_PROVIDER=gemini); embeddings are truncated to EMBEDDING_DIMENSIONS.
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-flash-lite-latest"
+    gemini_embedding_model: str = "gemini-embedding-001"
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    gemini_timeout_seconds: float = 30.0
+    gemini_max_retries: int = 2
     embedding_batch_size: int = 64
     ingestion_deadline_seconds: float = 120.0
     cors_origins: list[str] = ["http://127.0.0.1:3000", "http://localhost:3000"]

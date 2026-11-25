@@ -8,6 +8,11 @@ from app.config import Settings
 from app.domain.providers import ChatProvider, EmbeddingProvider
 from app.domain.tracing import NoopTracer, SafeTracer, Tracer
 from app.infrastructure.fake_providers import ExtractiveChatProvider, FakeEmbeddingProvider
+from app.infrastructure.gemini_provider import (
+    GeminiChatProvider,
+    GeminiClient,
+    GeminiEmbeddingProvider,
+)
 from app.infrastructure.openai_provider import OpenAIChatProvider, OpenAIEmbeddingProvider
 
 logger = logging.getLogger("app.tracing")
@@ -27,9 +32,22 @@ def _openai_client(settings: Settings) -> openai.OpenAI:
     )
 
 
+def _gemini_client(settings: Settings) -> GeminiClient:
+    if settings.gemini_api_key is None or not settings.gemini_api_key.get_secret_value():
+        raise ProviderConfigurationError("MODEL_PROVIDER=gemini requires GEMINI_API_KEY.")
+    return GeminiClient(
+        settings.gemini_api_key.get_secret_value(),
+        base_url=settings.gemini_base_url,
+        timeout=settings.gemini_timeout_seconds,
+        max_retries=settings.gemini_max_retries,
+    )
+
+
 def build_embedding_provider(settings: Settings) -> EmbeddingProvider:
     if settings.model_provider == "fake":
         return FakeEmbeddingProvider()
+    if settings.model_provider == "gemini":
+        return GeminiEmbeddingProvider(_gemini_client(settings), settings.gemini_embedding_model)
     return OpenAIEmbeddingProvider(
         _openai_client(settings),
         settings.openai_embedding_model,
@@ -40,6 +58,12 @@ def build_embedding_provider(settings: Settings) -> EmbeddingProvider:
 def build_chat_provider(settings: Settings) -> ChatProvider:
     if settings.model_provider == "fake":
         return ExtractiveChatProvider()
+    if settings.model_provider == "gemini":
+        if not settings.gemini_model:
+            raise ProviderConfigurationError("MODEL_PROVIDER=gemini requires GEMINI_MODEL.")
+        return GeminiChatProvider(
+            _gemini_client(settings), settings.gemini_model, settings.max_output_tokens
+        )
     if not settings.openai_chat_model:
         raise ProviderConfigurationError("MODEL_PROVIDER=openai requires OPENAI_CHAT_MODEL.")
     return OpenAIChatProvider(

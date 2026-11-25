@@ -30,7 +30,8 @@ async function ask(page: Page, question: string) {
   const before = await answers.count();
   await page.getByLabel("Question", { exact: true }).fill(question);
   await page.getByLabel("Question", { exact: true }).press("Enter");
-  await expect(answers).toHaveCount(before + 1);
+  // Live providers can use the whole request deadline (REQUEST_DEADLINE_SECONDS, default 45 s).
+  await expect(answers).toHaveCount(before + 1, { timeout: 50_000 });
   return answers.last();
 }
 
@@ -45,7 +46,10 @@ test("upload, ask, inspect evidence, abstain and detect duplicates", async ({ pa
   await expect(page.getByText("Asking 1 selected document")).toBeVisible();
 
   const answer = await ask(page, ANSWERABLE);
-  const citation = answer.getByRole("button", { name: /^Show evidence S1: SOP-001-v2\.pdf, page \d+$/ });
+  // The Sources list is always rendered; inline [S1] markers depend on the model's wording.
+  const citation = answer
+    .getByRole("list", { name: "Sources" })
+    .getByRole("button", { name: /SOP-001-v2\.pdf, p\. \d+/ });
   await expect(citation).toBeVisible();
   await citation.click();
   await expect(citation).toHaveAttribute("aria-pressed", "true");

@@ -32,7 +32,7 @@ cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm ru
 cd frontend && npx playwright install chromium && npm run test:e2e
 # optional: E2E_BASE_URL (default http://127.0.0.1:3000), E2E_SCREENSHOT_DIR=../docs/screenshots to save screenshots
 ```
-Live-model smoke (opt-in, not run here): set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` in `.env`, reset and reseed (embeddings from different providers must not be mixed), then run `npm run test:e2e`.
+Live-model smoke (opt-in, not run here): set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` (or `MODEL_PROVIDER=gemini` and `GEMINI_API_KEY`) in `.env`, reset and reseed (embeddings from different providers must not be mixed), then run `npm run test:e2e`.
 
 LangSmith tracing is optional and off by default (`TRACE_LANGSMITH`, metadata only; [ADR 0007](../docs/adr/0007-observability-and-tracing.md)).
 
@@ -43,7 +43,7 @@ cd backend
 # Offline (default): deterministic fake providers, no key, no network
 EVAL_DATABASE_URL=postgresql+psycopg://lifesci:lifesci@127.0.0.1:5432/lifesci_eval \
   uv run python -m app.evaluation.run
-# Live (opt-in): MODEL_PROVIDER=openai OPENAI_API_KEY=... OPENAI_CHAT_MODEL=... plus the same command
+# Live (opt-in): MODEL_PROVIDER=openai OPENAI_API_KEY=... OPENAI_CHAT_MODEL=... (or MODEL_PROVIDER=gemini GEMINI_API_KEY=...) plus the same command
 ```
 
 The runner resets the evaluation database (its name must end in `_eval` or `_test`). It ingests the sample documents and the INJECTION-001 fixture, then runs every case in `vector` and `hybrid` mode with identical providers and settings. Unscoped cases are restricted to the sample documents, so the injection fixture affects only E15. It then runs the comparison and version cases (E06–E10) once more through the comparison agent (`mode=compare`, hybrid retrieval), and checks the production auto-routing rule against every case's category. It writes `reports/<date>-<provider>.{json,md}`.
