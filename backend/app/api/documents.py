@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 
@@ -51,10 +51,16 @@ Service = Annotated[DocumentService, Depends(get_document_service)]
 
 
 @router.post("", status_code=201, response_model=UploadOut)
-def upload_document(file: Annotated[UploadFile, File()], response: Response, service: Service):
+def upload_document(
+    file: Annotated[UploadFile, File()],
+    response: Response,
+    service: Service,
+    version: Annotated[str | None, Form(max_length=50)] = None,
+):
+    """Optional `version` is display metadata only; duplicates keep their stored version."""
     data = file.file.read(MAX_UPLOAD_BYTES + 1)
     try:
-        result = service.upload(file.filename, data)
+        result = service.upload(file.filename, data, version=(version or "").strip() or None)
     except DocumentValidationError as exc:
         status = 413 if exc.code == "file_too_large" else 422
         raise ApiError(status, exc.code, exc.message) from exc

@@ -122,3 +122,21 @@ test("small screens stack panels without horizontal scrolling", async ({ page })
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 });
+
+test("loads the bundled sample documents with one click", async ({ page }) => {
+  const errors = trackPageErrors(page);
+  await page.goto("/");
+
+  const manifest = await (await page.request.get("/samples/manifest.json")).json();
+  expect(manifest).toHaveLength(7);
+
+  await page.getByRole("button", { name: "Load sample documents" }).click();
+  // Counts depend on what is already in the database; there must be no failures.
+  await expect(page.getByRole("status").filter({ hasText: /^Sample documents: \d+ added, \d+ already present\.$/ })).toBeVisible({
+    timeout: 45_000,
+  });
+  for (const { filename } of manifest as { filename: string }[]) {
+    await expect(page.getByTitle(filename, { exact: true })).toBeVisible();
+  }
+  expect(errors).toEqual([]);
+});

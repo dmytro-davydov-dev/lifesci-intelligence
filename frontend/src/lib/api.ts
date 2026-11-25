@@ -128,9 +128,11 @@ export function listDocuments(fetchImpl?: Fetch): Promise<DocumentSummary[]> {
   return request<DocumentSummary[]>("/api/documents", {}, fetchImpl);
 }
 
-export function uploadDocument(file: File, fetchImpl?: Fetch): Promise<UploadResult> {
+/** `version` is optional display metadata; an existing duplicate keeps its stored version. */
+export function uploadDocument(file: File, fetchImpl?: Fetch, version?: string | null): Promise<UploadResult> {
   const form = new FormData();
   form.append("file", file);
+  if (version) form.append("version", version);
   return request<UploadResult>("/api/documents", { method: "POST", body: form }, fetchImpl);
 }
 

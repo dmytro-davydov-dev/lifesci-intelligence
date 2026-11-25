@@ -1,0 +1,5 @@
+OPS-NOTE-001 | Synthetic operational note
+Section 1. Register review
+The CAPA coordinator reviews overdue actions every Friday. The note does not change approved SOP requirements.
+Section 2. Contact
+The fictional quality mailbox is qa@example.invalid.

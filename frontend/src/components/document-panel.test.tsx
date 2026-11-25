@@ -8,8 +8,10 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
   uploadDocument: vi.fn(),
 }));
+vi.mock("@/lib/samples", () => ({ loadSampleDocuments: vi.fn() }));
 
 const api = await import("@/lib/api");
+const samples = await import("@/lib/samples");
 const { DocumentPanel } = await import("@/components/document-panel");
 
 const result = (overrides: Partial<UploadResult>): UploadResult => ({
@@ -74,5 +76,28 @@ describe("DocumentPanel", () => {
     const { input } = renderPanel();
     expect(screen.getByText(/No documents yet/)).toBeInTheDocument();
     expect(input).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("loads the bundled samples and summarises the outcome", async () => {
+    vi.mocked(samples.loadSampleDocuments).mockResolvedValueOnce({ created: 5, duplicate: 1, failed: ["SOP-004.pdf"] });
+    const { onUploaded } = renderPanel();
+
+    await userEvent.click(screen.getByRole("button", { name: "Load sample documents" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Sample documents: 5 added, 1 already present, failed: SOP-004.pdf.",
+    );
+    expect(onUploaded).toHaveBeenCalled();
+  });
+
+  it("shows why samples could not be loaded", async () => {
+    vi.mocked(samples.loadSampleDocuments).mockRejectedValueOnce(
+      new api.ApiError("Cannot reach the API. Is the backend running?", "network_error", 0, null),
+    );
+    renderPanel();
+
+    await userEvent.click(screen.getByRole("button", { name: "Load sample documents" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Cannot reach the API");
   });
 });

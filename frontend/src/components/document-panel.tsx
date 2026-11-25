@@ -1,12 +1,13 @@
 "use client";
 
-import { LoaderCircle, Plus, RefreshCw } from "lucide-react";
+import { FileStack, LoaderCircle, Plus, RefreshCw } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type DocumentSummary, formatApiError, uploadDocument } from "@/lib/api";
+import { loadSampleDocuments } from "@/lib/samples";
 
 const STATUS_VARIANT = {
   ready: "secondary",
@@ -59,6 +60,22 @@ export function DocumentPanel({
     }
   }
 
+  async function handleLoadSamples() {
+    setUploading(true);
+    setNotice(null);
+    try {
+      const { created, duplicate, failed } = await loadSampleDocuments();
+      const parts = [`${created} added`, `${duplicate} already present`];
+      if (failed.length > 0) parts.push(`failed: ${failed.join(", ")}`);
+      setNotice({ tone: failed.length > 0 ? "error" : "info", text: `Sample documents: ${parts.join(", ")}.` });
+      await onUploaded();
+    } catch (error) {
+      setNotice({ tone: "error", text: formatApiError(error, "Loading sample documents failed.") });
+    } finally {
+      setUploading(false);
+    }
+  }
+
   const readyCount = documents.filter((d) => d.status === "ready").length;
 
   return (
@@ -87,7 +104,7 @@ export function DocumentPanel({
       <ul className="-mx-2 flex min-h-0 flex-col gap-0.5 overflow-y-auto" aria-busy={loading}>
         {!loading && documents.length === 0 && (
           <li className="mx-2 rounded-lg border border-dashed border-sidebar-border bg-card/60 p-4 text-center text-sm text-muted-foreground">
-            No documents yet. Upload one to start asking questions.
+            No documents yet. Upload one or load the synthetic samples to start asking questions.
           </li>
         )}
         {documents.map((document) => {
@@ -150,6 +167,10 @@ export function DocumentPanel({
         >
           {uploading ? <LoaderCircle className="animate-spin" /> : <Plus />}
           {uploading ? "Uploading and indexing…" : "Upload document"}
+        </Button>
+        <Button variant="ghost" size="sm" className="w-full" onClick={handleLoadSamples} disabled={uploading}>
+          <FileStack />
+          Load sample documents
         </Button>
         <p className="text-xs text-muted-foreground">PDF, TXT or MD · up to 10 MB · 100 pages. Public or synthetic documents only.</p>
         {notice && (

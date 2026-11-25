@@ -43,6 +43,8 @@ Web UI: http://127.0.0.1:3000 · API: http://127.0.0.1:8000 (docs at `/docs`) ·
 
 *Verified 2026-11-24 from a fresh clone at commit `0710cc0`:* a separate Compose project started healthy in about 20 s, the seed ingested 7 of 7 documents, the four Playwright smoke tests passed, and after `down -v` the library was empty and reseeding restored it.
 
+**Sample documents in the UI:** the frontend bundles the synthetic samples in `frontend/public/samples/` (served at `/samples/`, so they ship with any frontend deployment, e.g. Vercel). **Load sample documents** in the sidebar uploads them through the normal API; files already present are skipped by hash. Each sample is uploaded with its manifest `version` (optional `version` form field on `POST /api/documents`; an existing duplicate keeps its stored version). After changing `lifesci-test-data/`, run `npm run samples:sync` in `frontend/`; a unit test fails if the bundle drifts from the manifest.
+
 Test corpus, seeding, test commands and evaluations: [evals/README.md](evals/README.md).
 
 ## Architecture

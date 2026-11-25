@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ApiError, documentFileUrl, listDocuments, sendChat } from "@/lib/api";
+import { ApiError, documentFileUrl, listDocuments, sendChat, uploadDocument } from "@/lib/api";
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -21,6 +21,19 @@ describe("api client", () => {
     expect(url).toMatch(/\/api\/chat$/);
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body)).toEqual({ question: "Q?", document_ids: ["d1"] });
+  });
+
+  it("sends the optional version as a form field only when given", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({}));
+    const file = new File(["%PDF"], "sop.pdf", { type: "application/pdf" });
+
+    await uploadDocument(file, fetchMock, "2.0");
+    await uploadDocument(file, fetchMock);
+
+    const [withVersion, without] = fetchMock.mock.calls.map(([, init]) => init.body as FormData);
+    expect(withVersion.get("version")).toBe("2.0");
+    expect((withVersion.get("file") as File).name).toBe("sop.pdf");
+    expect(without.has("version")).toBe(false);
   });
 
   it("raises ApiError with the server error envelope", async () => {

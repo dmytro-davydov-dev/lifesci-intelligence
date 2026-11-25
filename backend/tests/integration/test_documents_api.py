@@ -57,6 +57,33 @@ def test_duplicate_upload_returns_existing_document(client: TestClient, storage_
     assert len(list(storage_dir.iterdir())) == 1
 
 
+def test_upload_records_optional_version(client: TestClient) -> None:
+    files = {"file": ("sop.txt", b"Record deviations within 48 hours.", "text/plain")}
+    created = client.post("/api/documents", files=files, data={"version": " 2.0 "})
+
+    assert created.status_code == 201
+    assert created.json()["version"] == "2.0"
+    assert client.get(f"/api/documents/{created.json()['id']}").json()["version"] == "2.0"
+    duplicate = client.post("/api/documents", files=files, data={"version": "9.9"})
+    assert duplicate.json()["version"] == "2.0"
+    assert upload(client, "plain.txt", b"No version given.", "text/plain").json()["version"] is None
+
+
+def test_overlong_version_is_rejected_without_side_effects(
+    client: TestClient, storage_dir: Path
+) -> None:
+    response = client.post(
+        "/api/documents",
+        files={"file": ("sop.txt", b"content", "text/plain")},
+        data={"version": "x" * 51},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+    assert client.get("/api/documents").json() == []
+    assert not storage_dir.exists() or list(storage_dir.iterdir()) == []
+
+
 def test_list_and_get_documents(client: TestClient) -> None:
     first = upload(client, "one.txt", b"one", "text/plain").json()
     second = upload(client, "two.txt", b"two", "text/plain").json()
