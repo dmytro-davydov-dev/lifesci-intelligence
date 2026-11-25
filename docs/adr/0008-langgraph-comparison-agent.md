@@ -29,7 +29,7 @@ Status: accepted (T14–T15, 2026-11-24)
 
 ## Known limitations
 - Routing by wording can miss implicit comparisons ("Is SOP-002 sufficient against the reference?"). Users can force `mode=compare`.
-- Planning calls add latency and tokens: up to 6 extra calls. No live-model run has been executed, because there is no API key in this environment.
+- Planning calls add latency and tokens: up to 6 extra calls.
 - Tool steps and findings are not persisted. Only the final answer and citations are stored, so a reloaded conversation shows no findings.
 - Database retrieval inside a search has no statement timeout. A slow query can eat into the time reserved for the answer, which then returns 504 if less than 1 s remains.
 - Conversation history (bounded to 6 messages) is resent on every planning call. It helps with follow-ups ("compare those") but costs tokens.

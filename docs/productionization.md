@@ -1,6 +1,6 @@
 # Productionization plan (not implemented)
 
-This plan is a proposal for taking the local demo to a regulated, multi-user deployment. None of it is built. The order follows risk: identity and data protection first, then reliability, then scale.
+This plan is a proposal for taking the demo to a regulated, multi-user deployment. None of it is built. The order follows risk: identity and data protection first, then reliability, then scale.
 
 ## 1. Identity, access and tenancy
 - OIDC single sign-on through the customer's identity provider, using Amazon Cognito or a direct IdP integration. The API validates short-lived JWTs.
@@ -11,7 +11,7 @@ This plan is a proposal for taking the local demo to a regulated, multi-user dep
 ## 2. AWS deployment
 - **Compute:** ECS Fargate services for `web` and `api` in private subnets behind an ALB with AWS WAF.
 - **Database:** RDS PostgreSQL with pgvector (Multi-AZ), automated backups, point-in-time recovery, and a tested restore runbook.
-- **Files:** an S3 bucket replacing local storage, encrypted with KMS, versioned, public access blocked, with lifecycle rules for retention.
+- **Files:** an S3 bucket replacing the API's disk storage, encrypted with KMS, versioned, public access blocked, with lifecycle rules for retention.
 - **Secrets:** AWS Secrets Manager for provider and database credentials. Nothing secret goes in task definitions.
 - **Delivery:** infrastructure as code with Terraform or CDK; separate dev, staging and prod accounts.
 

@@ -10,7 +10,7 @@ Upload public or synthetic PDF/text documents, ask questions, inspect exact sour
 
 ![Comparison with structured findings](docs/screenshots/workspace-comparison.png)
 
-*Actual app running end to end in offline mode (`MODEL_PROVIDER=fake`, no API key) on the seeded synthetic corpus, captured by the Playwright smoke test (`E2E_SCREENSHOT_DIR`). Top: golden question E01 scoped to SOP-001-v2. Retrieval returns the passage containing the 48-hour recording rule, and the citation opens it in the evidence panel. Bottom: golden comparison E06 with two documents selected. The bounded agent searches both documents, returns a structured finding with citations to QMS-REF-001 (24 hours) and SOP-001-v2 (48 hours), and the evidence panel shows the exact source passages. The deterministic fake generator is extractive: it quotes the retrieved chunks instead of writing prose, and it labels the comparison finding "Insufficient evidence" because it leaves the alignment call to the reviewer. With `MODEL_PROVIDER=openai`, the same pipeline uses an OpenAI model to write answers and assessments. I tested that mode manually with an API key; these screenshots show offline mode, which CI uses.*
+*The app running end to end on the seeded synthetic corpus, captured by the Playwright smoke test (`E2E_SCREENSHOT_DIR`). Top: golden question E01 scoped to SOP-001-v2. Retrieval returns the passage containing the 48-hour recording rule, and the citation opens it in the evidence panel. Bottom: golden comparison E06 with two documents selected. The bounded agent searches both documents, returns a structured finding with citations to QMS-REF-001 (24 hours) and SOP-001-v2 (48 hours), and the evidence panel shows the exact source passages.*
 
 ## Documentation
 | Topic | Document |
@@ -25,6 +25,17 @@ Upload public or synthetic PDF/text documents, ask questions, inspect exact sour
 | AI-assisted development workflow | [docs/ai-workflow.md](docs/ai-workflow.md) |
 | Key technical and product decisions | [docs/key-technical-and-product-decisions.md](docs/key-technical-and-product-decisions.md) |
 | AI-generated suggestions I challenged | [docs/examples-of-ai-generated-suggestions-i-challenged.md](docs/examples-of-ai-generated-suggestions-i-challenged.md) |
+
+## Releases
+
+### v2 (2026-11-25)
+- **Live deployment:** frontend on Vercel, API on Render. Live app: https://lifesci-intelligence.vercel.app
+- **Google Gemini support:** `MODEL_PROVIDER=gemini` with `GEMINI_API_KEY`. Chat uses `GEMINI_MODEL` (default `gemini-flash-lite-latest`) through `generateContent` with structured JSON output; embeddings use `gemini-embedding-001` at 1536 dimensions, so the database schema is unchanged. OpenAI and the offline provider still work.
+- **Sample documents ship with the frontend:** the synthetic corpus is bundled under `frontend/public/samples/`, and **Load sample documents** in the sidebar loads it in one click, including document versions.
+- **Upload API:** `POST /api/documents` accepts an optional `version` field.
+
+### v1
+Initial MVP: PDF/text upload, page-aware chunking, hybrid retrieval, grounded answers with clickable citations and abstention, the bounded comparison agent, evaluation harness, Docker Compose setup and CI.
 
 ## Local setup
 Prerequisites: Docker with Compose v2. For running checks outside containers: uv (Python 3.12) and Node 24 / npm.
@@ -48,10 +59,10 @@ Web UI: http://127.0.0.1:3000 · API: http://127.0.0.1:8000 (docs at `/docs`) ·
 Test corpus, seeding, test commands and evaluations: [evals/README.md](evals/README.md).
 
 ## Architecture
-Next.js + shadcn/ui -> FastAPI -> LangGraph chat graph (rule routing; grounded Q&A or a bounded read-only tool agent for comparisons) -> retrieval, ingestion and model adapters -> PostgreSQL + pgvector and local file storage. Hybrid full-text/vector retrieval fused with RRF. Optional metadata-only LangSmith tracing. Details: [docs/architecture.md](docs/architecture.md); also the [plan](mvp-implementation-plan.md), [roadmap](development-roadmap.md) and [product design](docs/product-design.md).
+Next.js + shadcn/ui -> FastAPI -> LangGraph chat graph (rule routing; grounded Q&A or a bounded read-only tool agent for comparisons) -> retrieval, ingestion and model adapters -> PostgreSQL + pgvector and server file storage. Hybrid full-text/vector retrieval fused with RRF. Optional metadata-only LangSmith tracing. Details: [docs/architecture.md](docs/architecture.md); also the [plan](mvp-implementation-plan.md), [roadmap](development-roadmap.md) and [product design](docs/product-design.md).
 
 ## Productionization
-Not production-ready: single-user local demo with no authentication. The proposed path is in [docs/productionization.md](docs/productionization.md): OIDC with RBAC and row-level tenant isolation, ECS Fargate, RDS pgvector, S3 with KMS, Secrets Manager, queued ingestion, eval-gated model changes, monitoring, backups and incident runbooks. Security controls and gaps: [docs/security.md](docs/security.md). No patient data or confidential documents.
+Not production-ready: a single-user demo, publicly deployed without authentication. The proposed path is in [docs/productionization.md](docs/productionization.md): OIDC with RBAC and row-level tenant isolation, ECS Fargate, RDS pgvector, S3 with KMS, Secrets Manager, queued ingestion, eval-gated model changes, monitoring, backups and incident runbooks. Security controls and gaps: [docs/security.md](docs/security.md). No patient data or confidential documents.
 
 ## AI-assisted development and decisions
 How AI was used in development, quality guardrails and review findings: [docs/ai-workflow.md](docs/ai-workflow.md). Key technical and product decisions: [docs/key-technical-and-product-decisions.md](docs/key-technical-and-product-decisions.md). Examples of AI-generated suggestions I challenged: [docs/examples-of-ai-generated-suggestions-i-challenged.md](docs/examples-of-ai-generated-suggestions-i-challenged.md).
@@ -60,7 +71,7 @@ How AI was used in development, quality guardrails and review findings: [docs/ai
 
 Given the time constraints, I prioritized a working end-to-end document intelligence workflow over a comprehensive production platform. With more time, I would focus on improving the quality of the evidence, validating architectural assumptions and making the application ready for real customer workloads. I would not necessarily introduce more technologies or agents.
 
-Known limitations of the current build are listed under the area where I would address them. The most important one: I tested the app manually with an OpenAI API key, but the committed evaluation report and screenshots come from the deterministic offline run used in CI. Live answer quality, gap detection, latency and cost have not yet been measured systematically.
+Known limitations of the current build are listed under the area where I would address them. The most important one: answer quality, gap detection, latency and cost have not yet been measured systematically across models.
 
 ### 1. Validate the product with domain experts
 
@@ -70,7 +81,7 @@ I would replace or supplement the synthetic document collection with representat
 
 ### 2. Expand the evaluation framework
 
-**Current state:** 16 golden cases. The committed report is an offline run; the suite has not yet been run against the live model. The section matching used to score retrieval is heuristic.
+**Current state:** 16 golden cases. The section matching used to score retrieval is heuristic.
 
 I would build a larger, independently reviewed golden dataset covering ambiguous questions, conflicting evidence, superseded documents, numerical thresholds, multi-document reasoning and adversarial inputs.
 
@@ -100,7 +111,7 @@ I would test failure scenarios such as provider throttling, timeouts, malformed 
 
 ### 5. Strengthen security and data governance
 
-**Current state:** a single-user local demo with no authentication, encryption at rest or rate limiting. The prompt-injection guard is heuristic (see [docs/security.md](docs/security.md)).
+**Current state:** a single-user demo with no authentication, encryption at rest or rate limiting. The prompt-injection guard is heuristic (see [docs/security.md](docs/security.md)).
 
 Before introducing real customer documents, I would implement authentication, tenant isolation and document-level authorization. Access restrictions would be enforced during retrieval and source access, independently of the model.
 
@@ -110,13 +121,13 @@ For a regulated life sciences environment, I would work with security, privacy a
 
 ### 6. Improve production readiness and operational ownership
 
-**Current state:** runs locally with Docker Compose only; there is no cloud deployment.
+**Current state:** deployed as a single-instance demo with the frontend on Vercel and the API on Render (https://lifesci-intelligence.vercel.app); Docker Compose is used for development. The repository has no infrastructure as code or separate staging environment.
 
 I would establish service-level objectives for availability, latency and reliability, supported by load testing and operational metrics. I would monitor retrieval latency, model latency, token consumption, cost, error rates, ingestion failures and budget exhaustion.
 
 I would introduce deployment pipelines with automated quality gates, infrastructure as code, environment separation, database migration procedures and rollback mechanisms. I would also establish alerting, incident response runbooks, backup and restore testing and clear ownership of production support.
 
-For cloud deployment, I would evaluate managed container services, PostgreSQL and object storage before considering more complex infrastructure. I would introduce distributed rate limiting and concurrency controls when scaling beyond a single backend instance.
+For a production deployment, I would evaluate managed container services, PostgreSQL and object storage before considering more complex infrastructure. I would introduce distributed rate limiting and concurrency controls when scaling beyond a single backend instance.
 
 ### 7. Improve the user experience and integrations
 

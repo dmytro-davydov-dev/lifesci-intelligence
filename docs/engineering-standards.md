@@ -1,6 +1,6 @@
 # Engineering Standards Followed and Skipped
 
-The goal was a small, well-tested and reproducible solution rather than a feature-complete one. These are the standards I applied, and the ones I consciously skipped for an MVP-sized local demo.
+The goal was a small, well-tested and reproducible solution rather than a feature-complete one. These are the standards I applied, and the ones I consciously skipped for an MVP-sized demo.
 
 ## Followed
 
@@ -22,7 +22,7 @@ The goal was a small, well-tested and reproducible solution rather than a featur
 - **Twelve-factor configuration.** Everything is configured through environment variables, with a committed `.env.example`. The defaults run offline (`MODEL_PROVIDER=fake`).
 
 ### Security, reliability and observability
-- **Secure defaults for a local demo.** Ports bind to loopback only and containers run as non-root users. Uploads are validated by extension, file signature, size and page count. Storage keys are random, so user input never reaches file paths. No secrets live in the repository.
+- **Secure defaults.** Compose ports bind to loopback only and containers run as non-root users. Uploads are validated by extension, file signature, size and page count. Storage keys are random, so user input never reaches file paths. No secrets live in the repository.
 - **LLM-specific guardrails.** Retrieved text is treated as untrusted data. Citations are restricted to allowlisted chunk IDs, and their quotes and page numbers come from the database, not from the model. The assistant abstains when evidence is insufficient. Context, output, iteration and time budgets are bounded.
 - **Observability.** Structured JSON logs carry request IDs, durations and error classes but never document text. Errors use one consistent envelope. Health endpoints cover liveness and readiness (database check). LangSmith tracing is optional, records metadata only, and a tracing failure never breaks a request.
 
@@ -34,7 +34,7 @@ The goal was a small, well-tested and reproducible solution rather than a featur
 
 | Standard | Why skipped | What production would need |
 |---|---|---|
-| Authentication, authorisation, multi-tenancy | Single-user local demo | OIDC, RBAC, row-level tenant isolation (see `productionization.md`) |
+| Authentication, authorisation, multi-tenancy | Single-user demo | OIDC, RBAC, row-level tenant isolation (see `productionization.md`) |
 | Rate limiting and admission control | No shared deployment | Per-user and per-tenant limits, token and cost budgets |
 | Static type checking for Python (mypy or pyright) | Pydantic and typed signatures covered the boundaries; the time went to behavioural tests | Add pyright in strict mode to CI |
 | Coverage thresholds | Tests target behaviour, and a percentage gate encourages low-value tests | Track coverage as a signal, not a gate |
@@ -42,8 +42,8 @@ The goal was a small, well-tested and reproducible solution rather than a featur
 | Dependency and image scanning (Dependabot, SAST, container scanning) | Manual review of pins and lockfiles at this scale | Dependabot or Renovate, CodeQL, image scanning in CI |
 | Pull-request workflow with branch protection | Solo project with linear commits on `main` | Protected `main`, required reviews and CI checks |
 | Durable background jobs for ingestion | Synchronous bounded ingestion is simpler and enough for a demo | A queue with workers, retries and idempotency |
-| Encryption at rest, backups, retention policies | Local Docker volumes with synthetic data only | KMS-encrypted storage, automated backups, retention rules |
+| Encryption at rest, backups, retention policies | Synthetic data only | KMS-encrypted storage, automated backups, retention rules |
 | Load and performance testing | Demo-scale corpus; exact vector search is fast enough | Load tests and an HNSW index once measured need appears |
 | Live-model evaluation in CI | Needs paid API keys and gives non-deterministic results | A scheduled, opt-in live eval gate before model or prompt changes |
 | Formal accessibility audit | Keyboard-accessible controls and semantic markup only | Automated axe checks plus a manual WCAG review |
-| Database migration rollback tests | Forward-only migrations on a fresh local database | Tested downgrade paths, or expand-and-contract migrations |
+| Database migration rollback tests | Forward-only migrations | Tested downgrade paths, or expand-and-contract migrations |

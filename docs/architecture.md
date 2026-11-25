@@ -12,7 +12,7 @@ flowchart LR
   APP --> DOM["domain/<br/>chunking · answers · findings · intent · agent · retrieval"]
   APP --> INF["infrastructure/<br/>DB · storage · PDF · model adapters · tracer"]
   INF --> PG[("PostgreSQL 17 + pgvector<br/>documents · chunks · conversations · messages")]
-  INF --> FS[("Local file storage<br/>random keys")]
+  INF --> FS[("File storage<br/>random keys")]
   INF -.optional.-> OAI["OpenAI<br/>embeddings + chat"]
   INF -.optional.-> LS["LangSmith<br/>metadata-only traces"]
 ```
@@ -57,7 +57,9 @@ Only `ready` documents are retrievable. Vector search is exact cosine (no ANN in
 - **Tests:** unit (pure domain), integration (real pgvector with fake providers), security fixtures, the offline eval harness, and Playwright browser smoke. CI runs them on pushes to `main` and on pull requests (`.github/workflows/ci.yml`). It passes on GitHub Actions (commit `7ccbb90`).
 - **Logs:** structured JSON with a request ID, durations, token counts, statuses and error classes. Document text, questions and answers are never logged (ADR 0007).
 - **Tracing:** optional LangSmith tracing (`TRACE_LANGSMITH`) sends metadata only by default. LangChain auto-tracing is forced off.
-- **Evaluations:** `backend/app/evaluation/run.py` compares vector and hybrid retrieval and runs a comparison-agent pass. Reports are in `evals/reports/`; only offline runs exist.
+- **Evaluations:** `backend/app/evaluation/run.py` compares vector and hybrid retrieval and runs a comparison-agent pass. Reports are in `evals/reports/`.
+
+- **Deployment:** the frontend runs on Vercel and the API on Render (https://lifesci-intelligence.vercel.app). Docker Compose runs the full stack for development.
 
 ## Not implemented
-Authentication and RBAC, multi-tenancy, durable ingestion jobs, OCR, SSE streaming, FastMCP, cloud deployment, exports and dashboards. See `docs/productionization.md` and the roadmap's Phase 5.
+Authentication and RBAC, multi-tenancy, durable ingestion jobs, OCR, SSE streaming, FastMCP, exports and dashboards. See `docs/productionization.md` and the roadmap's Phase 5.

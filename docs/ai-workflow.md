@@ -81,7 +81,7 @@ Taken from the review commits (the `T10 review`, `T12 review`, `T13 review` and 
 | Phase 3 review | No time limit on database search inside the agent; history resent on every planning call. | Deferred; documented in ADR 0008 |
 
 ## Verification discipline and limits
-- No live-model run has been executed, because no API key was available. Every model behaviour in tests and reports comes from deterministic fakes or scripted replies, and the eval reports and README say so.
+- Automated tests use deterministic fakes or scripted replies, so CI needs no API key and gives repeatable results.
 - The comparison assessment labels (`evals/comparison-labels.json`) were derived from the corpus README's documented gaps. They are kept separate from the human-supplied golden dataset.
 - The screenshots in `docs/screenshots/` are captured from the running app by Playwright (`E2E_SCREENSHOT_DIR`), not mocked.
 - CI (`.github/workflows/ci.yml`) was run locally from a fresh clone, step by step, and passes on GitHub Actions.

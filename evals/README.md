@@ -32,7 +32,7 @@ cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm ru
 cd frontend && npx playwright install chromium && npm run test:e2e
 # optional: E2E_BASE_URL (default http://127.0.0.1:3000), E2E_SCREENSHOT_DIR=../docs/screenshots to save screenshots
 ```
-Live-model smoke (opt-in, not run here): set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` (or `MODEL_PROVIDER=gemini` and `GEMINI_API_KEY`) in `.env`, reset and reseed (embeddings from different providers must not be mixed), then run `npm run test:e2e`.
+Live-model smoke (opt-in): set `MODEL_PROVIDER=openai`, `OPENAI_API_KEY` and `OPENAI_CHAT_MODEL` (or `MODEL_PROVIDER=gemini` and `GEMINI_API_KEY`) in `.env`, reset and reseed (embeddings from different providers must not be mixed), then run `npm run test:e2e`.
 
 LangSmith tracing is optional and off by default (`TRACE_LANGSMITH`, metadata only; [ADR 0007](../docs/adr/0007-observability-and-tracing.md)).
 

@@ -1,12 +1,12 @@
 # Security notes
 
-This app is a single-user local demo. It makes no claim of production security or regulatory compliance. This document records the controls that are implemented and the gaps that are known.
+This app is a single-user demo, publicly deployed (frontend on Vercel, API on Render) without authentication. It makes no claim of production security or regulatory compliance. This document records the controls that are implemented and the gaps that are known.
 
 ## Implemented controls
 
 | Area | Control | Where |
 |---|---|---|
-| Network | Every Compose port binds to 127.0.0.1. CORS is limited to the local web origin, and to the GET and POST methods. | `compose.yaml`, `app/main.py` |
+| Network | Every Compose port binds to 127.0.0.1. CORS allows only the configured web origins (`CORS_ORIGINS`) and the GET and POST methods. | `compose.yaml`, `app/main.py` |
 | Containers | Non-root API user, `no-new-privileges`, all capabilities dropped. | `compose.yaml`, `backend/Dockerfile` |
 | Uploads | Extension and magic-byte check, 10 MB and 100-page limits, request-size cap. Encrypted, scanned and empty PDFs are rejected. Names are sanitised; storage uses random keys, so a user-supplied path can never be followed. | ADR 0001 |
 | Serving files | `X-Content-Type-Options: nosniff`, inline disposition, CSP `sandbox` for text files. | `app/api/documents.py` |
@@ -20,12 +20,12 @@ This app is a single-user local demo. It makes no claim of production security o
 | Supply chain | Dependencies are pinned with committed lockfiles, and the packages added during T07 (frontend), T13 (langsmith) and T14 (langgraph) were chosen from releases at least two weeks old. CI actions are pinned to commit SHAs, and the CI token is read-only. | `uv.lock`, `package-lock.json`, `ci.yml` |
 
 ## Known gaps
-- No authentication, authorization or tenant isolation: anyone who can reach the loopback ports can read every document.
+- No authentication, authorization or tenant isolation: anyone who can reach the deployed app or API can upload documents, read every document and use up the model provider quota. Upload public or synthetic documents only.
 - No encryption at rest beyond what the host provides. There is no retention or deletion policy, and no deletion endpoint.
 - The injection guard is heuristic: an answer that obeys an injected instruction in paraphrase can pass. Retrieval itself can still be biased by adversarial text.
 - Uploaded PDFs are parsed in the API process with PyMuPDF, without a sandbox or separate worker.
-- The default database credentials (`lifesci/lifesci`) are only acceptable on loopback.
+- The default database credentials (`lifesci/lifesci`) are for local Compose only; a deployment must set its own.
 - There is no rate limiting. Synchronous ingestion holds a worker for up to 120 s.
-- A live-model run has never been executed, so model-specific behaviours (refusals, injection susceptibility) are untested.
+- Model-specific behaviours (refusals, injection susceptibility) differ between providers and models and should be rechecked after any model change.
 
 `docs/productionization.md` describes how these gaps would be closed.
